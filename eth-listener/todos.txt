@@ -9,25 +9,41 @@
    - Handle connection errors and events
    - Add graceful shutdown
 
-## Pending
-⏳ 2. Listen for pending transaction hashes
-   - Subscribe to pending transaction events
+✅ 2. Listen for pending transaction hashes
+   - Subscribe to pending transaction events using provider.on('pending')
    - Receive transaction hashes from mempool
+   - Track transaction count and statistics
+   - Report statistics every 30 seconds
+   - Add start/stop listening controls
 
-⏳ 3. Fetch full transaction objects
-   - Request full transaction details for each hash
+✅ 3. Fetch full transaction objects
+   - Request full transaction details for each hash via provider.getTransaction()
    - Handle cases where node doesn't return data
    - Implement error handling for failed fetches
+   - Add timeout mechanism (configurable via FETCH_TIMEOUT)
+   - Concurrency control (MAX_CONCURRENT_FETCHES)
+   - Track fetch statistics (success/failure rates)
 
-⏳ 4. Normalize transaction data into JSON payload
+✅ 4. Normalize transaction data into JSON payload
    - Extract important fields (hash, blockNumber, from, to, value, gas, data, timestamp)
    - Add metadata (received_at, chain info)
    - Structure data for Kafka
+   - Created type definitions in docs/normalized.types.ts
+   - Created normalizer utility in utils/normalizer.ts
+   - Integrated normalization into EthereumWebSocketListener with callback support
 
-⏳ 5. Push transactions into Kafka
-   - Set up Kafka producer
+✅ 5. Push transactions into Kafka
+   - Set up Kafka producer (TransactionKafkaProducer.ts)
    - Configure topic (blockchain.txs.raw)
    - Send messages with hash as key, JSON as value
+   - Added GZIP compression for messages
+   - Integrated with EthereumWebSocketListener via callback
+   - Created docker-compose.yml with Kafka, Zookeeper, and Kafka UI
+   - Created Dockerfile for containerized deployment
+   - Added Docker scripts to package.json
+   - Updated README.md with complete architecture
+
+## Pending
 
 ⏳ 6. Handle WebSocket disconnects with auto-reconnect
    - Implement reconnection logic

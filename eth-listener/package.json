@@ -1,10 +1,22 @@
 {
   "name": "eth-listener",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "scripts": {
-    "start": "node index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts",
+    "watch": "tsc --watch",
+    "clean": "rm -rf dist",
+    "test": "ts-node src/test/listener.test.ts",
+    "docker:build": "docker-compose build",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f eth-listener",
+    "docker:restart": "docker-compose restart eth-listener",
+    "docker:start": "npm run docker:build && npm run docker:up && npm run docker:logs",
+    "docker:kafka-ui": "echo 'Kafka UI available at http://localhost:8080'"
   },
   "keywords": ["ethereum", "blockchain", "websocket", "listener"],
   "author": "",
@@ -12,6 +24,12 @@
   "description": "Ethereum WebSocket listener for real-time transaction monitoring",
   "dependencies": {
     "dotenv": "^17.2.3",
-    "ethers": "^6.16.0"
+    "ethers": "^6.16.0",
+    "kafkajs": "^2.2.4"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.2"
   }
 }
