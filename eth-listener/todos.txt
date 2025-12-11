@@ -1,0 +1,41 @@
+# Ethereum Listener - Implementation Tasks
+
+## Completed
+✅ 1. Set up WebSocket connection to Ethereum RPC
+   - Create Node.js project structure
+   - Install ethers.js and dependencies
+   - Implement WebSocket provider connection
+   - Add connection status monitoring
+   - Handle connection errors and events
+   - Add graceful shutdown
+
+## Pending
+⏳ 2. Listen for pending transaction hashes
+   - Subscribe to pending transaction events
+   - Receive transaction hashes from mempool
+
+⏳ 3. Fetch full transaction objects
+   - Request full transaction details for each hash
+   - Handle cases where node doesn't return data
+   - Implement error handling for failed fetches
+
+⏳ 4. Normalize transaction data into JSON payload
+   - Extract important fields (hash, blockNumber, from, to, value, gas, data, timestamp)
+   - Add metadata (received_at, chain info)
+   - Structure data for Kafka
+
+⏳ 5. Push transactions into Kafka
+   - Set up Kafka producer
+   - Configure topic (blockchain.txs.raw)
+   - Send messages with hash as key, JSON as value
+
+⏳ 6. Handle WebSocket disconnects with auto-reconnect
+   - Implement reconnection logic
+   - Handle idle disconnections
+   - Add exponential backoff
+
+⏳ 7. Handle rate limits and retry logic
+   - Detect rate limiting
+   - Implement request throttling
+   - Add retry mechanism with backoff
+   - Optional: batch RPC calls

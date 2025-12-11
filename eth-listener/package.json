@@ -1,0 +1,17 @@
+{
+  "name": "eth-listener",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": ["ethereum", "blockchain", "websocket", "listener"],
+  "author": "",
+  "license": "ISC",
+  "description": "Ethereum WebSocket listener for real-time transaction monitoring",
+  "dependencies": {
+    "dotenv": "^17.2.3",
+    "ethers": "^6.16.0"
+  }
+}
