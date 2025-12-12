@@ -1,2 +1,12 @@
 ./node_modules
 *node_modules
+
+# TypeScript build output
+eth-listener/dist/
+*.tsbuildinfo
+
+# Environment files
+eth-listener/.env
+
+# Logs
+*.log

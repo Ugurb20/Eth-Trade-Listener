@@ -10,6 +10,7 @@
     "watch": "tsc --watch",
     "clean": "rm -rf dist",
     "test": "ts-node src/test/listener.test.ts",
+    "test:reconnection": "ts-node src/test/reconnection.test.ts",
     "docker:build": "docker-compose build",
     "docker:up": "docker-compose up -d",
     "docker:down": "docker-compose down",

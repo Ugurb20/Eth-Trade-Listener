@@ -83,6 +83,7 @@ eth-listener/
 - Subscribes to pending transactions
 - Fetches full transaction details with concurrency control
 - Provides callback mechanism for normalized transactions
+- **Auto-reconnection with exponential backoff** for handling disconnects and network issues
 
 ### 2. TransactionKafkaProducer
 - Connects to Kafka brokers
@@ -150,6 +151,13 @@ KAFKA_RETRY_TIMEOUT=30000
 # Listener Configuration
 MAX_CONCURRENT_FETCHES=10
 FETCH_TIMEOUT=5000
+
+# Auto-Reconnection Configuration
+AUTO_RECONNECT=true                    # Enable/disable auto-reconnection (default: true)
+MAX_RECONNECT_ATTEMPTS=0               # Maximum reconnection attempts, 0 = unlimited (default: 0)
+RECONNECT_DELAY=1000                   # Initial delay before reconnection in ms (default: 1000)
+MAX_RECONNECT_DELAY=60000             # Maximum delay between reconnection attempts in ms (default: 60000)
+RECONNECT_BACKOFF_MULTIPLIER=2        # Exponential backoff multiplier (default: 2)
 ```
 
 ## Available Scripts
@@ -222,9 +230,9 @@ npm run docker:logs
 - Docker containerization
 - Comprehensive type definitions
 - Integration tests
+- **WebSocket auto-reconnection with exponential backoff**
 
 🔄 **Pending:**
-- WebSocket auto-reconnection logic
 - Advanced rate limiting
 - Dead letter queue for failed messages
 
