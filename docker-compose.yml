@@ -65,18 +65,64 @@ services:
   # Ethereum Listener Service
   eth-listener:
     build:
-      context: .
+      context: ./eth-listener
       dockerfile: Dockerfile
     container_name: eth-listener-service
     depends_on:
       kafka:
         condition: service_healthy
+    env_file:
+      - .env
     environment:
-      ETH_WEBSOCKET_URL: ${ETH_WEBSOCKET_URL}
       KAFKA_BROKERS: kafka:29092
       KAFKA_TOPIC: blockchain.txs.raw
-      MAX_CONCURRENT_FETCHES: ${MAX_CONCURRENT_FETCHES:-10}
-      FETCH_TIMEOUT: ${FETCH_TIMEOUT:-5000}
+    networks:
+      - eth-listener-network
+    restart: unless-stopped
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: eth-listener-postgres
+    user: "${UID:-1000}:${GID:-1000}"
+    environment:
+      POSTGRES_DB: ethereum_data
+      POSTGRES_USER: eth_user
+      POSTGRES_PASSWORD: eth_password
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - ~/Projects/db:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - eth-listener-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U eth_user -d ethereum_data"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Spark Kafka Consumer (PySpark)
+  spark-consumer:
+    build:
+      context: ./spark-consumer
+      dockerfile: Dockerfile
+    container_name: spark-eth-consumer
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      KAFKA_TOPIC: blockchain.txs.raw
+      CONSUMER_GROUP_ID: spark-eth-consumer
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ethereum_data
+      POSTGRES_USER: eth_user
+      POSTGRES_PASSWORD: eth_password
     networks:
       - eth-listener-network
     restart: unless-stopped

@@ -24,6 +24,18 @@ package "External Libraries" <<Cloud>> {
         +disconnect()
         +send(record)
     }
+
+    class SparkSession <<pyspark>> {
+        +readStream
+        +writeStream
+        +stop()
+    }
+
+    class KafkaSource <<spark-kafka>> {
+        +format(kafka)
+        +option(key, value)
+        +load()
+    }
 }
 
 ' Configuration Types
@@ -47,6 +59,15 @@ package "Configuration Types" {
         +retryTimeout: number
     }
 
+    interface SparkConsumerConfig {
+        +kafkaBootstrapServers: string
+        +kafkaTopic: string
+        +consumerGroupId: string
+        +startingOffsets: string
+        +autoCommitEnabled: boolean
+        +autoCommitIntervalMs: number
+    }
+
     interface EnvironmentConfig {
         +ETH_WEBSOCKET_URL: string
         +MAX_CONCURRENT_FETCHES: string
@@ -56,6 +77,8 @@ package "Configuration Types" {
         +RECONNECT_DELAY: string
         +MAX_RECONNECT_DELAY: string
         +RECONNECT_BACKOFF_MULTIPLIER: string
+        +KAFKA_BOOTSTRAP_SERVERS: string
+        +CONSUMER_GROUP_ID: string
     }
 }
 
@@ -158,6 +181,21 @@ package "Core Components" {
         +getConnectionStatus()
         +getTopic()
     }
+
+    class SparkKafkaConsumer <<python>> {
+        -spark: SparkSession
+        -kafkaBootstrapServers: string
+        -topic: string
+        -consumerGroupId: string
+        -transactionSchema: StructType
+        __
+        +SparkKafkaConsumer(config)
+        +createSparkSession()
+        +getTransactionSchema()
+        +consumeKafkaMessages()
+        -parseMessages()
+        -logToConsole()
+    }
 }
 
 package "Utilities" {
@@ -184,6 +222,10 @@ class Main <<entrypoint>> {
     +{static} main()
 }
 
+class SparkConsumerMain <<python-entrypoint>> {
+    +{static} main()
+}
+
 ' Relationships
 EthereumWebSocketListener --> WebSocketProvider : uses
 EthereumWebSocketListener ..> EthereumListenerConfig : configured by
@@ -197,6 +239,11 @@ TransactionKafkaProducer ..> KafkaProducerConfig : configured by
 TransactionKafkaProducer ..> NormalizedTransaction : consumes
 TransactionKafkaProducer ..> TransactionNormalizer : calls
 
+SparkKafkaConsumer --> SparkSession : creates
+SparkKafkaConsumer --> KafkaSource : uses
+SparkKafkaConsumer ..> SparkConsumerConfig : configured by
+SparkKafkaConsumer ..> NormalizedTransaction : consumes
+
 TransactionNormalizer ..> NormalizedTransaction : creates
 TransactionNormalizer ..> TransactionMetadata : creates
 
@@ -205,6 +252,8 @@ NormalizedTransaction *-- TransactionMetadata : contains
 Main --> EthereumWebSocketListener : creates
 Main --> TransactionKafkaProducer : creates
 Main ..> TransactionCallback : sets
+
+SparkConsumerMain --> SparkKafkaConsumer : creates
 
 ' Notes
 note right of EthereumWebSocketListener
@@ -221,6 +270,14 @@ note right of TransactionKafkaProducer
   - Batch publishing support
 end note
 
+note right of SparkKafkaConsumer
+  Consumes transactions from Kafka using PySpark
+  - Spark Structured Streaming
+  - Auto-commit enabled (1s interval)
+  - Schema validation
+  - Console output logging
+end note
+
 note bottom of TransactionNormalizer
   Converts raw transactions to normalized format
   - Adds metadata (timestamp, network, chainId)
@@ -229,13 +286,16 @@ end note
 
 ' Architecture Flow
 note as N1
-  <b>Data Flow</b>
+  <b>Complete Data Flow</b>
   1. EthereumWebSocketListener connects to Ethereum WebSocket
   2. Listens for pending transactions
   3. Fetches full transaction details
   4. Normalizes transaction using TransactionNormalizer
   5. Invokes TransactionCallback
   6. TransactionKafkaProducer publishes to Kafka topic
+  7. SparkKafkaConsumer reads from Kafka in real-time
+  8. Parses and validates transaction schema
+  9. Logs to console (auto-commits offsets)
 end note
 
 @enduml
