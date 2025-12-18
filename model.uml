@@ -29,12 +29,18 @@ package "External Libraries" <<Cloud>> {
         +readStream
         +writeStream
         +stop()
+        +sparkContext
     }
 
     class KafkaSource <<spark-kafka>> {
         +format(kafka)
         +option(key, value)
         +load()
+    }
+
+    class PostgreSQL <<database>> {
+        +JDBC Driver
+        +psycopg2 Driver
     }
 }
 
@@ -188,13 +194,25 @@ package "Core Components" {
         -topic: string
         -consumerGroupId: string
         -transactionSchema: StructType
+        -postgresUrl: string
+        -postgresProperties: dict
         __
-        +SparkKafkaConsumer(config)
+        +SparkKafkaConsumer()
         +createSparkSession()
         +getTransactionSchema()
+        +getPostgresUrl()
+        +getPostgresProperties()
         +consumeKafkaMessages()
+        +writeToPostgres(batch_df, batch_id)
         -parseMessages()
-        -logToConsole()
+        -upsertPartition(partition)
+    }
+
+    class PostgreSQLDatabase <<persistence>> {
+        +ethereum_transactions_raw: Table
+        __
+        +storeTransaction()
+        +queryTransactions()
     }
 }
 
@@ -241,6 +259,8 @@ TransactionKafkaProducer ..> TransactionNormalizer : calls
 
 SparkKafkaConsumer --> SparkSession : creates
 SparkKafkaConsumer --> KafkaSource : uses
+SparkKafkaConsumer --> PostgreSQL : writes to
+SparkKafkaConsumer --> PostgreSQLDatabase : persists
 SparkKafkaConsumer ..> SparkConsumerConfig : configured by
 SparkKafkaConsumer ..> NormalizedTransaction : consumes
 
@@ -272,10 +292,21 @@ end note
 
 note right of SparkKafkaConsumer
   Consumes transactions from Kafka using PySpark
-  - Spark Structured Streaming
+  - Spark Structured Streaming with Kafka integration
   - Auto-commit enabled (1s interval)
-  - Schema validation
-  - Console output logging
+  - Schema validation and type casting
+  - Batch processing with foreachBatch
+  - PostgreSQL persistence with upsert logic
+  - Duplicate handling (ON CONFLICT DO NOTHING)
+end note
+
+note right of PostgreSQLDatabase
+  Persistent storage for Ethereum transactions
+  - Table: ethereum_transactions_raw
+  - Indexes on: hash, block_number, from/to addresses,
+    received_at, network, chain_id
+  - Supports both pending and confirmed transactions
+  - Deduplication via hash (PRIMARY KEY)
 end note
 
 note bottom of TransactionNormalizer
@@ -286,16 +317,30 @@ end note
 
 ' Architecture Flow
 note as N1
-  <b>Complete Data Flow</b>
-  1. EthereumWebSocketListener connects to Ethereum WebSocket
-  2. Listens for pending transactions
-  3. Fetches full transaction details
-  4. Normalizes transaction using TransactionNormalizer
-  5. Invokes TransactionCallback
-  6. TransactionKafkaProducer publishes to Kafka topic
-  7. SparkKafkaConsumer reads from Kafka in real-time
-  8. Parses and validates transaction schema
-  9. Logs to console (auto-commits offsets)
+  <b>Complete End-to-End Data Flow</b>
+
+  <b>1. Transaction Capture (TypeScript)</b>
+  • EthereumWebSocketListener connects to Ethereum WebSocket RPC
+  • Subscribes to pending transactions from mempool
+  • Fetches full transaction details with concurrency control
+  • Auto-reconnection with exponential backoff on disconnect
+
+  <b>2. Normalization & Publishing (TypeScript)</b>
+  • TransactionNormalizer extracts key fields and adds metadata
+  • TransactionKafkaProducer publishes to Kafka topic
+  • GZIP compression, idempotent producer
+
+  <b>3. Stream Processing (PySpark)</b>
+  • SparkKafkaConsumer reads from Kafka using Structured Streaming
+  • Parses and validates transaction schema
+  • Type casting for numeric fields (NUMERIC(38,0), BIGINT)
+  • Batch processing via foreachBatch
+
+  <b>4. Persistence (PostgreSQL)</b>
+  • Writes to PostgreSQL via JDBC and psycopg2
+  • Upsert logic: INSERT ... ON CONFLICT (hash) DO NOTHING
+  • Indexed for efficient queries by address, block, network
+  • Auto-commits Kafka offsets after successful write
 end note
 
 @enduml

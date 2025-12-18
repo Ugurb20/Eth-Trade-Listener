@@ -11,3 +11,4 @@ eth-listener/.env
 # Logs
 *.log
 .env
+*.env

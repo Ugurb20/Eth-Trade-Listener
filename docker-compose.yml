@@ -5,6 +5,7 @@ services:
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
     container_name: eth-listener-zookeeper
+    profiles: ["full", "kafka"]
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
@@ -22,6 +23,7 @@ services:
   kafka:
     image: confluentinc/cp-kafka:7.5.0
     container_name: eth-listener-kafka
+    profiles: ["full", "kafka"]
     depends_on:
       zookeeper:
         condition: service_healthy
@@ -50,6 +52,7 @@ services:
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
     container_name: eth-listener-kafka-ui
+    profiles: ["full", "kafka"]
     depends_on:
       kafka:
         condition: service_healthy
@@ -68,6 +71,7 @@ services:
       context: ./eth-listener
       dockerfile: Dockerfile
     container_name: eth-listener-service
+    profiles: ["full"]
     depends_on:
       kafka:
         condition: service_healthy
@@ -84,6 +88,7 @@ services:
   postgres:
     image: postgres:16-alpine
     container_name: eth-listener-postgres
+    profiles: ["full", "db", "scraper"]
     user: "${UID:-1000}:${GID:-1000}"
     environment:
       POSTGRES_DB: ethereum_data
@@ -109,6 +114,7 @@ services:
       context: ./spark-consumer
       dockerfile: Dockerfile
     container_name: spark-eth-consumer
+    profiles: ["full"]
     depends_on:
       kafka:
         condition: service_healthy
@@ -126,6 +132,26 @@ services:
     networks:
       - eth-listener-network
     restart: unless-stopped
+
+  # Dimension Table Scraper (runs once to populate dim tables)
+  dim-scraper:
+    build:
+      context: ./dim-scraper
+      dockerfile: Dockerfile
+    container_name: eth-dim-scraper
+    profiles: ["full", "scraper"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ethereum_data
+      POSTGRES_USER: eth_user
+      POSTGRES_PASSWORD: eth_password
+    networks:
+      - eth-listener-network
+    restart: "no"  # Run once and exit
 
 networks:
   eth-listener-network:
