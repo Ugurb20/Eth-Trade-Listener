@@ -73,22 +73,28 @@ CREATE TABLE IF NOT EXISTS dim_contract (
     id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     contract_address    TEXT NOT NULL,
     protocol            TEXT NOT NULL,      -- uniswap, sushi, aave
-    version             TEXT NOT NULL,      -- v2, v3
-    source              TEXT NOT NULL,      -- github, defillama, manual
+    version             TEXT NOT NULL,      -- v2, v3, v3_pool, v3_router
+    pairname            TEXT,               -- e.g., WETH/USDC (for pools only)
+    total_volume_usd    NUMERIC(20, 2),     -- Total volume in USD (for pools only), NULL for non-pool contracts
+    source              TEXT NOT NULL,      -- github, graph, manual
     created_at          TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_dim_contract_address ON dim_contract(contract_address);
 CREATE INDEX IF NOT EXISTS idx_dim_contract_protocol ON dim_contract(protocol);
 CREATE INDEX IF NOT EXISTS idx_dim_contract_version ON dim_contract(version);
+CREATE INDEX IF NOT EXISTS idx_dim_contract_pairname ON dim_contract(pairname) WHERE pairname IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_dim_contract_volume ON dim_contract(total_volume_usd) WHERE total_volume_usd IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_dim_contract_source ON dim_contract(source);
 
 COMMENT ON TABLE dim_contract IS 'Known DeFi protocol contracts for transaction decoding';
 COMMENT ON COLUMN dim_contract.id IS 'Unique identifier (UUID)';
 COMMENT ON COLUMN dim_contract.contract_address IS 'Contract address';
 COMMENT ON COLUMN dim_contract.protocol IS 'Protocol name (e.g., uniswap, sushi, aave)';
-COMMENT ON COLUMN dim_contract.version IS 'Protocol version (e.g., v2, v3)';
-COMMENT ON COLUMN dim_contract.source IS 'Data source (e.g., github, defillama, manual)';
+COMMENT ON COLUMN dim_contract.version IS 'Protocol version (e.g., v2, v3, v3_pool, v3_router)';
+COMMENT ON COLUMN dim_contract.pairname IS 'Trading pair name for pool contracts (e.g., WETH/USDC), NULL for non-pool contracts';
+COMMENT ON COLUMN dim_contract.total_volume_usd IS 'Total trading volume in USD for pool contracts, NULL for non-pool contracts';
+COMMENT ON COLUMN dim_contract.source IS 'Data source (e.g., github, graph, manual)';
 COMMENT ON COLUMN dim_contract.created_at IS 'Timestamp when record was created';
 
 -- Dimension table for function selectors

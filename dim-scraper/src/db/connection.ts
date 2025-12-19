@@ -29,8 +29,8 @@ export class DatabaseManager {
     if (contracts.length === 0) return 0;
 
     const query = `
-      INSERT INTO dim_contract (contract_address, protocol, version, source)
-      VALUES ($1, $2, $3, $4)
+      INSERT INTO dim_contract (contract_address, protocol, version, pairname, total_volume_usd, source)
+      VALUES ($1, $2, $3, $4, $5, $6)
     `;
 
     let inserted = 0;
@@ -40,6 +40,8 @@ export class DatabaseManager {
           contract.contract_address,
           contract.protocol,
           contract.version,
+          contract.pairname || null,
+          contract.total_volume_usd || null,
           contract.source,
         ]);
         inserted++;

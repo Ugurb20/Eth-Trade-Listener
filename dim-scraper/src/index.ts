@@ -1,18 +1,18 @@
 // Main entry point for dimension table scraper
 import { DatabaseManager } from './db/connection';
 import { FourByteScraper } from './scrapers/fourbyte-scraper';
-import { DefiLlamaScraper } from './scrapers/defillama-scraper';
+import { UniswapGraphScraper } from './scrapers/uniswap-graph-scraper';
 import { ContractInfo, FunctionInfo, CalldataSlice, DatabaseConfig } from './types';
 
 class DimensionTableScraper {
   private db: DatabaseManager;
   private fourByteScraper: FourByteScraper;
-  private defiLlamaScraper: DefiLlamaScraper;
+  private uniswapGraphScraper: UniswapGraphScraper | null;
 
-  constructor(dbConfig: DatabaseConfig) {
+  constructor(dbConfig: DatabaseConfig, graphApiKey?: string) {
     this.db = new DatabaseManager(dbConfig);
     this.fourByteScraper = new FourByteScraper();
-    this.defiLlamaScraper = new DefiLlamaScraper();
+    this.uniswapGraphScraper = graphApiKey ? new UniswapGraphScraper(graphApiKey) : null;
   }
 
   /**
@@ -45,17 +45,21 @@ class DimensionTableScraper {
   }
 
   /**
-   * Step 1: Scrape contract addresses from various sources
+   * Step 1: Scrape contract addresses from Uniswap subgraph
    */
   private async scrapeContracts(): Promise<void> {
     console.log('\n━━━ Step 1: Scraping Contract Addresses ━━━\n');
 
     const allContracts: ContractInfo[] = [];
 
-    // Fetch from DeFi Llama
-    console.log('\n[2/2] Fetching from DeFi Llama...');
-    const defiLlamaContracts = await this.defiLlamaScraper.fetchDEXContracts();
-    allContracts.push(...defiLlamaContracts);
+    // Fetch from Uniswap Graph API (if API key provided)
+    if (this.uniswapGraphScraper) {
+      console.log('Fetching from Uniswap subgraph...');
+      const uniswapContracts = await this.uniswapGraphScraper.fetchAllContracts(100);
+      allContracts.push(...uniswapContracts);
+    } else {
+      console.log('⚠️  Skipping Uniswap subgraph (no API key provided)');
+    }
 
     // Deduplicate by contract address
     const uniqueContracts = this.deduplicateContracts(allContracts);
@@ -143,7 +147,15 @@ async function main() {
     password: process.env.POSTGRES_PASSWORD || 'eth_password',
   };
 
-  const scraper = new DimensionTableScraper(dbConfig);
+  const graphApiKey = process.env.GRAPH_API_KEY;
+
+  if (graphApiKey) {
+    console.log('✓ Graph API key found - will fetch from Uniswap subgraph');
+  } else {
+    console.log('⚠️  No Graph API key found - skipping Uniswap subgraph');
+  }
+
+  const scraper = new DimensionTableScraper(dbConfig, graphApiKey);
 
   try {
     await scraper.run();

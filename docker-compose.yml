@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # Zookeeper - required for Kafka
   zookeeper:
@@ -89,7 +87,6 @@ services:
     image: postgres:16-alpine
     container_name: eth-listener-postgres
     profiles: ["full", "db", "scraper"]
-    user: "${UID:-1000}:${GID:-1000}"
     environment:
       POSTGRES_DB: ethereum_data
       POSTGRES_USER: eth_user
@@ -98,7 +95,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - ~/Projects/db:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
       - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     networks:
       - eth-listener-network
@@ -143,12 +140,15 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    env_file:
+      - .env
     environment:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
       POSTGRES_DB: ethereum_data
       POSTGRES_USER: eth_user
       POSTGRES_PASSWORD: eth_password
+      GRAPH_API_KEY: ${GRAPH_API_KEY}
     networks:
       - eth-listener-network
     restart: "no"  # Run once and exit
@@ -156,3 +156,7 @@ services:
 networks:
   eth-listener-network:
     driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local

@@ -4,7 +4,9 @@ export interface ContractInfo {
   contract_address: string;
   protocol: string;
   version: string;
-  source: string;  // github, defillama, manual
+  pairname?: string;  // e.g., WETH/USDC (for pools only)
+  total_volume_usd?: number;  // Total volume in USD (for pools only), null for non-pool contracts
+  source: string;  // github, graph, manual
 }
 
 export interface FunctionInfo {

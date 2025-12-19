@@ -10,5 +10,11 @@ eth-listener/.env
 
 # Logs
 *.log
-.env
-*.env
+
+# Local environment variables
+*env
+./.env
+
+
+# Dim scraper data
+dim-scraper/dist/

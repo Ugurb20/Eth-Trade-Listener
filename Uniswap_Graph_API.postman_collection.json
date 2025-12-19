@@ -1,0 +1,321 @@
+{
+	"info": {
+		"_postman_id": "uniswap-graph-collection",
+		"name": "Uniswap Graph API",
+		"description": "Collection of Uniswap V3 subgraph queries via The Graph API",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Fetch Most Liquid Pools",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "graphql",
+					"graphql": {
+						"query": "{\n  pools(\n    first: 100,\n    orderBy: liquidity,\n    orderDirection: desc,\n    where: {\n      liquidity_gt: \"0\"\n    }\n  ) {\n    id\n    token0 {\n      id\n      symbol\n      name\n    }\n    token1 {\n      id\n      symbol\n      name\n    }\n    liquidity\n    volumeUSD\n    feeTier\n    sqrtPrice\n    totalValueLockedUSD\n  }\n}",
+						"variables": ""
+					}
+				},
+				"url": {
+					"raw": "https://gateway-arbitrum.network.thegraph.com/api/{{GRAPH_API_KEY}}/subgraphs/id/5zvR82QoaXYFyDEKLZ9t6v9adgnptxYpKpSbxtgVENFV",
+					"protocol": "https",
+					"host": [
+						"gateway-arbitrum",
+						"network",
+						"thegraph",
+						"com"
+					],
+					"path": [
+						"api",
+						"{{GRAPH_API_KEY}}",
+						"subgraphs",
+						"id",
+						"5zvR82QoaXYFyDEKLZ9t6v9adgnptxYpKpSbxtgVENFV"
+					]
+				},
+				"description": "Fetches the top 100 most liquid Uniswap V3 pools ordered by liquidity"
+			},
+			"response": []
+		},
+		{
+			"name": "Fetch Factories",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "graphql",
+					"graphql": {
+						"query": "{\n  factories(first: 1000, orderBy: totalValueLockedUSD, orderDirection: desc) {\n    id\n    poolCount\n    totalVolumeUSD\n    totalValueLockedUSD\n  }\n}",
+						"variables": ""
+					}
+				},
+				"url": {
+					"raw": "https://gateway-arbitrum.network.thegraph.com/api/{{GRAPH_API_KEY}}/subgraphs/id/5zvR82QoaXYFyDEKLZ9t6v9adgnptxYpKpSbxtgVENFV",
+					"protocol": "https",
+					"host": [
+						"gateway-arbitrum",
+						"network",
+						"thegraph",
+						"com"
+					],
+					"path": [
+						"api",
+						"{{GRAPH_API_KEY}}",
+						"subgraphs",
+						"id",
+						"5zvR82QoaXYFyDEKLZ9t6v9adgnptxYpKpSbxtgVENFV"
+					]
+				},
+				"description": "Fetches Uniswap V3 factory contracts ordered by TVL"
+			},
+			"response": []
+		},
+		{
+			"name": "Fetch Pools by TVL Threshold",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "graphql",
+					"graphql": {
+						"query": "{\n  pools(\n    first: 100,\n    orderBy: totalValueLockedUSD,\n    orderDirection: desc,\n    where: {\n      totalValueLockedUSD_gte: \"1000000\"\n    }\n  ) {\n    id\n    token0 {\n      symbol\n    }\n    token1 {\n      symbol\n    }\n    totalValueLockedUSD\n    volumeUSD\n    feeTier\n  }\n}",
+						"variables": ""
+					}
+				},
+				"url": {
+					"raw": "https://gateway-arbitrum.network.thegraph.com/api/{{GRAPH_API_KEY}}/subgraphs/id/5zvR82QoaXYFyDEKLZ9t6v9adgnptxYpKpSbxtgVENFV",
+					"protocol": "https",
+					"host": [
+						"gateway-arbitrum",
+						"network",
+						"thegraph",
+						"com"
+					],
+					"path": [
+						"api",
+						"{{GRAPH_API_KEY}}",
+						"subgraphs",
+						"id",
+						"5zvR82QoaXYFyDEKLZ9t6v9adgnptxYpKpSbxtgVENFV"
+					]
+				},
+				"description": "Fetches pools with TVL >= $1M (adjust the threshold in the where clause)"
+			},
+			"response": []
+		},
+		{
+			"name": "Fetch Top 10 Pools by Volume",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "graphql",
+					"graphql": {
+						"query": "{\n  pools(\n    first: 10,\n    orderBy: volumeUSD,\n    orderDirection: desc\n  ) {\n    id\n    token0 {\n      id\n      symbol\n      name\n    }\n    token1 {\n      id\n      symbol\n      name\n    }\n    volumeUSD\n    totalValueLockedUSD\n    feeTier\n    txCount\n  }\n}",
+						"variables": ""
+					}
+				},
+				"url": {
+					"raw": "https://gateway-arbitrum.network.thegraph.com/api/{{GRAPH_API_KEY}}/subgraphs/id/5zvR82QoaXYFyDEKLZ9t6v9adgnptxYpKpSbxtgVENFV",
+					"protocol": "https",
+					"host": [
+						"gateway-arbitrum",
+						"network",
+						"thegraph",
+						"com"
+					],
+					"path": [
+						"api",
+						"{{GRAPH_API_KEY}}",
+						"subgraphs",
+						"id",
+						"5zvR82QoaXYFyDEKLZ9t6v9adgnptxYpKpSbxtgVENFV"
+					]
+				},
+				"description": "Fetches the top 10 pools by total volume"
+			},
+			"response": []
+		},
+		{
+			"name": "Fetch Specific Pool by Address",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "graphql",
+					"graphql": {
+						"query": "{\n  pool(id: \"0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640\") {\n    id\n    token0 {\n      id\n      symbol\n      name\n      decimals\n    }\n    token1 {\n      id\n      symbol\n      name\n      decimals\n    }\n    feeTier\n    liquidity\n    sqrtPrice\n    tick\n    totalValueLockedUSD\n    volumeUSD\n    txCount\n  }\n}",
+						"variables": ""
+					}
+				},
+				"url": {
+					"raw": "https://gateway-arbitrum.network.thegraph.com/api/{{GRAPH_API_KEY}}/subgraphs/id/5zvR82QoaXYFyDEKLZ9t6v9adgnptxYpKpSbxtgVENFV",
+					"protocol": "https",
+					"host": [
+						"gateway-arbitrum",
+						"network",
+						"thegraph",
+						"com"
+					],
+					"path": [
+						"api",
+						"{{GRAPH_API_KEY}}",
+						"subgraphs",
+						"id",
+						"5zvR82QoaXYFyDEKLZ9t6v9adgnptxYpKpSbxtgVENFV"
+					]
+				},
+				"description": "Fetches details for a specific pool (example: USDC/WETH 0.05% pool)"
+			},
+			"response": []
+		},
+		{
+			"name": "Fetch Token Information",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "graphql",
+					"graphql": {
+						"query": "{\n  tokens(\n    first: 20,\n    orderBy: totalValueLockedUSD,\n    orderDirection: desc\n  ) {\n    id\n    symbol\n    name\n    decimals\n    totalValueLockedUSD\n    volumeUSD\n    txCount\n    poolCount\n  }\n}",
+						"variables": ""
+					}
+				},
+				"url": {
+					"raw": "https://gateway-arbitrum.network.thegraph.com/api/{{GRAPH_API_KEY}}/subgraphs/id/5zvR82QoaXYFyDEKLZ9t6v9adgnptxYpKpSbxtgVENFV",
+					"protocol": "https",
+					"host": [
+						"gateway-arbitrum",
+						"network",
+						"thegraph",
+						"com"
+					],
+					"path": [
+						"api",
+						"{{GRAPH_API_KEY}}",
+						"subgraphs",
+						"id",
+						"5zvR82QoaXYFyDEKLZ9t6v9adgnptxYpKpSbxtgVENFV"
+					]
+				},
+				"description": "Fetches top tokens by TVL with pool count and volume information"
+			},
+			"response": []
+		},
+		{
+			"name": "Fetch WETH/USDC Pools",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "graphql",
+					"graphql": {
+						"query": "{\n  pools(\n    where: {\n      token0: \"0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48\",\n      token1: \"0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2\"\n    }\n  ) {\n    id\n    token0 {\n      symbol\n    }\n    token1 {\n      symbol\n    }\n    feeTier\n    totalValueLockedUSD\n    volumeUSD\n  }\n}",
+						"variables": ""
+					}
+				},
+				"url": {
+					"raw": "https://gateway-arbitrum.network.thegraph.com/api/{{GRAPH_API_KEY}}/subgraphs/id/5zvR82QoaXYFyDEKLZ9t6v9adgnptxYpKpSbxtgVENFV",
+					"protocol": "https",
+					"host": [
+						"gateway-arbitrum",
+						"network",
+						"thegraph",
+						"com"
+					],
+					"path": [
+						"api",
+						"{{GRAPH_API_KEY}}",
+						"subgraphs",
+						"id",
+						"5zvR82QoaXYFyDEKLZ9t6v9adgnptxYpKpSbxtgVENFV"
+					]
+				},
+				"description": "Fetches all WETH/USDC pools with different fee tiers"
+			},
+			"response": []
+		},
+		{
+			"name": "Fetch Recent Swaps",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "graphql",
+					"graphql": {
+						"query": "{\n  swaps(\n    first: 10,\n    orderBy: timestamp,\n    orderDirection: desc\n  ) {\n    id\n    timestamp\n    pool {\n      token0 {\n        symbol\n      }\n      token1 {\n        symbol\n      }\n    }\n    sender\n    recipient\n    amount0\n    amount1\n    amountUSD\n    sqrtPriceX96\n    tick\n  }\n}",
+						"variables": ""
+					}
+				},
+				"url": {
+					"raw": "https://gateway-arbitrum.network.thegraph.com/api/{{GRAPH_API_KEY}}/subgraphs/id/5zvR82QoaXYFyDEKLZ9t6v9adgnptxYpKpSbxtgVENFV",
+					"protocol": "https",
+					"host": [
+						"gateway-arbitrum",
+						"network",
+						"thegraph",
+						"com"
+					],
+					"path": [
+						"api",
+						"{{GRAPH_API_KEY}}",
+						"subgraphs",
+						"id",
+						"5zvR82QoaXYFyDEKLZ9t6v9adgnptxYpKpSbxtgVENFV"
+					]
+				},
+				"description": "Fetches the 10 most recent swaps across all pools"
+			},
+			"response": []
+		}
+	],
+	"variable": [
+		{
+			"key": "GRAPH_API_KEY",
+			"value": "07beebc30156cb3d9222cc19d9d7d257",
+			"type": "string"
+		}
+	]
+}

@@ -1,7 +1,5 @@
 // Standalone test runner - no dependencies on test frameworks
 import { FourByteScraper } from '../scrapers/fourbyte-scraper';
-import { GitHubScraper } from '../scrapers/github-scraper';
-import { DefiLlamaScraper } from '../scrapers/defillama-scraper';
 import { SignatureComputer } from '../utils/signatures';
 
 class TestRunner {
@@ -120,100 +118,8 @@ runner.add('4byte.directory - Fetch swap functions', async () => {
   assert(byProtocol['uniswap_v3'] > 0, 'Should have Uniswap V3 functions');
 });
 
-// Test 4: GitHub - Uniswap V2
-runner.add('GitHub - Fetch Uniswap V2 contracts', async () => {
-  const scraper = new GitHubScraper();
-  const contracts = await scraper.fetchUniswapV2Deployments();
 
-  console.log(`Fetched ${contracts.length} Uniswap V2 contracts`);
-  assert(contracts.length > 0, 'Should find Uniswap V2 contracts');
-
-  contracts.forEach(c => {
-    console.log(`  ${c.contract_address} (${c.protocol} ${c.version})`);
-    assert(c.protocol === 'uniswap', 'Protocol should be uniswap');
-    assert(c.version === 'v2', 'Version should be v2');
-    assert(c.contract_address.match(/^0x[a-fA-F0-9]{40}$/) !== null, 'Address should be valid');
-  });
-});
-
-// Test 5: GitHub - Uniswap V3
-runner.add('GitHub - Fetch Uniswap V3 contracts', async () => {
-  const scraper = new GitHubScraper();
-  const contracts = await scraper.fetchUniswapV3Deployments();
-
-  console.log(`Fetched ${contracts.length} Uniswap V3 contracts`);
-  assert(contracts.length > 0, 'Should find Uniswap V3 contracts');
-  assert(contracts.every(c => c.protocol === 'uniswap'), 'All should be Uniswap');
-  assert(contracts.every(c => c.version === 'v3'), 'All should be V3');
-});
-
-// Test 6: GitHub - All deployments
-runner.add('GitHub - Fetch all protocol deployments', async () => {
-  const scraper = new GitHubScraper();
-  const contracts = await scraper.fetchAllDeployments();
-
-  console.log(`Total contracts fetched: ${contracts.length}`);
-  assert(contracts.length > 10, 'Should find more than 10 contracts');
-
-  const protocols = new Set(contracts.map(c => c.protocol));
-  console.log(`Protocols found: ${Array.from(protocols).join(', ')}`);
-
-  const expectedProtocols = ['uniswap', 'sushiswap', 'curve', 'balancer', '1inch'];
-  expectedProtocols.forEach(protocol => {
-    assert(protocols.has(protocol), `Should include ${protocol}`);
-  });
-
-  // Check for duplicates
-  const addresses = new Set(contracts.map(c => c.contract_address));
-  assert(addresses.size === contracts.length, 'Should have no duplicate addresses');
-});
-
-// Test 7: DeFi Llama - Protocols
-runner.add('DeFi Llama - Fetch protocols', async () => {
-  const scraper = new DefiLlamaScraper();
-  const protocols = await scraper.fetchProtocols();
-
-  console.log(`Fetched ${protocols.length} protocols`);
-  assert(protocols.length > 100, 'Should find many protocols');
-
-  if (protocols.length > 0) {
-    console.log(`Sample protocol: ${protocols[0].name}`);
-  }
-});
-
-// Test 8: DeFi Llama - Ethereum DEXs
-runner.add('DeFi Llama - Fetch Ethereum DEXs', async () => {
-  const scraper = new DefiLlamaScraper();
-  const dexes = await scraper.fetchEthereumDEXs();
-
-  console.log(`Found ${dexes.length} DEXs on Ethereum`);
-  assert(dexes.length > 10, 'Should find many DEXs');
-
-  dexes.forEach((dex: any) => {
-    assert(dex.category === 'Dexs', 'Category should be Dexs');
-    assert(dex.chains.includes('Ethereum'), 'Should include Ethereum');
-  });
-
-  console.log('Top 5 DEXs by TVL:');
-  dexes.slice(0, 5).forEach((dex: any, index: number) => {
-    console.log(`  ${index + 1}. ${dex.name} - $${(dex.tvl / 1e6).toFixed(2)}M`);
-  });
-});
-
-// Test 9: DeFi Llama - Chain TVLs
-runner.add('DeFi Llama - Fetch chain TVLs', async () => {
-  const scraper = new DefiLlamaScraper();
-  const chains = await scraper.fetchChainTVLs();
-
-  console.log(`Fetched TVL for ${chains.length} chains`);
-  assert(chains.length > 10, 'Should find many chains');
-
-  const ethereum = chains.find((c: any) => c.name === 'Ethereum');
-  assert(ethereum !== undefined, 'Should find Ethereum');
-  console.log(`Ethereum TVL: $${(ethereum.tvl / 1e9).toFixed(2)}B`);
-});
-
-// Test 10: Signature computation
+// Test 7: Signature computation
 runner.add('Signature Computation - Verify against 4byte', async () => {
   const fourbyte = new FourByteScraper();
 
@@ -249,52 +155,24 @@ runner.add('Signature Computation - Verify against 4byte', async () => {
   }
 });
 
-// Test 11: Integration - Data source availability
-runner.add('Integration - Verify all data sources are available', async () => {
-  const results: any = {
-    github: false,
-    fourbyte: false,
-    defillama: false,
-  };
-
-  // Test GitHub
-  try {
-    const github = new GitHubScraper();
-    const contracts = await github.fetchUniswapV2Deployments();
-    results.github = contracts.length > 0;
-    console.log(`GitHub: ${results.github ? '✓ Available' : '✗ Unavailable'} (${contracts.length} contracts)`);
-  } catch (error) {
-    console.log(`GitHub: ✗ Error - ${error}`);
-  }
+// Test 8: Integration - Data source availability
+runner.add('Integration - Verify 4byte data source is available', async () => {
+  let fourbyteAvailable = false;
 
   // Test 4byte
   try {
     const fourbyte = new FourByteScraper();
     const sigs = await fourbyte.searchSignatures('transfer');
-    results.fourbyte = sigs.length > 0;
-    console.log(`4byte.directory: ${results.fourbyte ? '✓ Available' : '✗ Unavailable'} (${sigs.length} results)`);
+    fourbyteAvailable = sigs.length > 0;
+    console.log(`4byte.directory: ${fourbyteAvailable ? '✓ Available' : '✗ Unavailable'} (${sigs.length} results)`);
   } catch (error) {
     console.log(`4byte.directory: ✗ Error - ${error}`);
   }
 
-  // Test DeFi Llama
-  try {
-    const defillama = new DefiLlamaScraper();
-    const protocols = await defillama.fetchProtocols();
-    results.defillama = protocols.length > 0;
-    console.log(`DeFi Llama: ${results.defillama ? '✓ Available' : '✗ Unavailable'} (${protocols.length} protocols)`);
-  } catch (error) {
-    console.log(`DeFi Llama: ✗ Error - ${error}`);
-  }
-
   console.log('\nSummary:');
-  console.log(`  GitHub: ${results.github ? '✓' : '✗'}`);
-  console.log(`  4byte.directory: ${results.fourbyte ? '✓' : '✗'}`);
-  console.log(`  DeFi Llama: ${results.defillama ? '✓' : '✗'}`);
+  console.log(`  4byte.directory: ${fourbyteAvailable ? '✓' : '✗'}`);
 
-  // At least 2 out of 3 should work
-  const available = Object.values(results).filter(Boolean).length;
-  assert(available >= 2, `At least 2 data sources should be available (got ${available})`);
+  assert(fourbyteAvailable, '4byte.directory should be available');
 });
 
 // Run all tests
