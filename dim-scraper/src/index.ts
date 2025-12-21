@@ -64,9 +64,9 @@ class DimensionTableScraper {
     // Deduplicate by contract address
     const uniqueContracts = this.deduplicateContracts(allContracts);
 
-    // Insert into database
-    console.log(`\n→ Inserting ${uniqueContracts.length} unique contracts into database...`);
-    await this.db.insertContracts(uniqueContracts);
+    // Upsert into database (insert or update based on contract_address)
+    console.log(`\n→ Upserting ${uniqueContracts.length} unique contracts into database...`);
+    await this.db.upsertContracts(uniqueContracts);
   }
 
   /**
@@ -87,8 +87,8 @@ class DimensionTableScraper {
 
     const uniqueFunctions = this.deduplicateFunctions(allFunctions);
 
-    console.log(`\n→ Inserting ${uniqueFunctions.length} unique function signatures into database...`);
-    await this.db.insertFunctions(uniqueFunctions);
+    console.log(`\n→ Upserting ${uniqueFunctions.length} unique function signatures into database...`);
+    await this.db.upsertFunctions(uniqueFunctions);
   }
 
 

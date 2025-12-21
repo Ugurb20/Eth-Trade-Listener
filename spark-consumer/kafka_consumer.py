@@ -65,16 +65,26 @@ def create_spark_session(app_name="EthereumKafkaConsumer"):
     """
     logger.info(f"Creating Spark session: {app_name}")
 
+    # Set log4j configuration file path
+    log4j_conf = "/app/log4j.properties"
+
     spark = SparkSession.builder \
         .appName(app_name) \
         .config("spark.jars.packages",
                 "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0,"
                 "org.postgresql:postgresql:42.7.1") \
         .config("spark.sql.streaming.checkpointLocation", "/tmp/spark-checkpoint") \
+        .config("spark.driver.extraJavaOptions", f"-Dlog4j.configuration=file:{log4j_conf}") \
+        .config("spark.executor.extraJavaOptions", f"-Dlog4j.configuration=file:{log4j_conf}") \
         .getOrCreate()
 
     # Set log level to reduce noise
-    spark.sparkContext.setLogLevel("WARN")
+    spark.sparkContext.setLogLevel("ERROR")
+
+    # Suppress specific Kafka warnings programmatically
+    log4j = spark._jvm.org.apache.log4j
+    log4j.LogManager.getLogger("org.apache.spark.sql.kafka010.KafkaDataConsumer").setLevel(log4j.Level.ERROR)
+    log4j.LogManager.getLogger("org.apache.kafka").setLevel(log4j.Level.ERROR)
 
     logger.info("Spark session created successfully")
     return spark

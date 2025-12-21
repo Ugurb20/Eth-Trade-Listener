@@ -17,8 +17,9 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the consumer script
+# Copy the consumer script and log4j configuration
 COPY kafka_consumer.py .
+COPY log4j.properties .
 
 # Set environment variables (can be overridden in docker-compose)
 ENV KAFKA_BOOTSTRAP_SERVERS=kafka:9092
