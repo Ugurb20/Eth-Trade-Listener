@@ -42,6 +42,16 @@ package "External Libraries" <<Cloud>> {
         +JDBC Driver
         +psycopg2 Driver
     }
+
+    class TheGraphAPI <<API>> {
+        +query(graphql)
+        +fetch pool data
+    }
+
+    class FourByteAPI <<API>> {
+        +search signatures
+        +get function data
+    }
 }
 
 ' Configuration Types
@@ -208,11 +218,53 @@ package "Core Components" {
         -upsertPartition(partition)
     }
 
+    class DimensionTableScraper <<typescript>> {
+        -db: DatabaseManager
+        -fourByteScraper: FourByteScraper
+        -uniswapGraphScraper: UniswapGraphScraper
+        __
+        +DimensionTableScraper(dbConfig, graphApiKey)
+        +run()
+        -scrapeContracts()
+        -scrapeFunctions()
+        -deduplicateContracts()
+        -deduplicateFunctions()
+    }
+
+    class FourByteScraper <<typescript>> {
+        __
+        +getSwapFunctions()
+        +getLiquidityFunctions()
+        -fetchFromAPI(query)
+    }
+
+    class UniswapGraphScraper <<typescript>> {
+        -apiKey: string
+        __
+        +UniswapGraphScraper(apiKey)
+        +fetchAllContracts(limit)
+        -querySubgraph(graphql)
+    }
+
+    class DatabaseManager <<typescript>> {
+        -pool: PostgresPool
+        __
+        +DatabaseManager(config)
+        +connect()
+        +close()
+        +upsertContracts(contracts)
+        +upsertFunctions(functions)
+    }
+
     class PostgreSQLDatabase <<persistence>> {
         +ethereum_transactions_raw: Table
+        +dim_contract: Table
+        +dim_function: Table
+        +dim_calldata_slice: Table
         __
         +storeTransaction()
         +queryTransactions()
+        +storeDimData()
     }
 }
 
@@ -244,7 +296,11 @@ class SparkConsumerMain <<python-entrypoint>> {
     +{static} main()
 }
 
-' Relationships
+class ScraperMain <<typescript-entrypoint>> {
+    +{static} main()
+}
+
+' Relationships - Listener Service
 EthereumWebSocketListener --> WebSocketProvider : uses
 EthereumWebSocketListener ..> EthereumListenerConfig : configured by
 EthereumWebSocketListener ..> TransactionCallback : uses
@@ -257,6 +313,7 @@ TransactionKafkaProducer ..> KafkaProducerConfig : configured by
 TransactionKafkaProducer ..> NormalizedTransaction : consumes
 TransactionKafkaProducer ..> TransactionNormalizer : calls
 
+' Relationships - Spark Consumer
 SparkKafkaConsumer --> SparkSession : creates
 SparkKafkaConsumer --> KafkaSource : uses
 SparkKafkaConsumer --> PostgreSQL : writes to
@@ -264,16 +321,28 @@ SparkKafkaConsumer --> PostgreSQLDatabase : persists
 SparkKafkaConsumer ..> SparkConsumerConfig : configured by
 SparkKafkaConsumer ..> NormalizedTransaction : consumes
 
+' Relationships - Dimension Scraper
+DimensionTableScraper --> DatabaseManager : uses
+DimensionTableScraper --> FourByteScraper : uses
+DimensionTableScraper --> UniswapGraphScraper : uses
+FourByteScraper --> FourByteAPI : queries
+UniswapGraphScraper --> TheGraphAPI : queries
+DatabaseManager --> PostgreSQLDatabase : writes to
+
+' Utility Relationships
 TransactionNormalizer ..> NormalizedTransaction : creates
 TransactionNormalizer ..> TransactionMetadata : creates
 
 NormalizedTransaction *-- TransactionMetadata : contains
 
+' Entry Points
 Main --> EthereumWebSocketListener : creates
 Main --> TransactionKafkaProducer : creates
 Main ..> TransactionCallback : sets
 
 SparkConsumerMain --> SparkKafkaConsumer : creates
+
+ScraperMain --> DimensionTableScraper : creates
 
 ' Notes
 note right of EthereumWebSocketListener
@@ -301,12 +370,34 @@ note right of SparkKafkaConsumer
 end note
 
 note right of PostgreSQLDatabase
-  Persistent storage for Ethereum transactions
-  - Table: ethereum_transactions_raw
-  - Indexes on: hash, block_number, from/to addresses,
-    received_at, network, chain_id
-  - Supports both pending and confirmed transactions
-  - Deduplication via hash (PRIMARY KEY)
+  Persistent storage for Ethereum transactions and metadata
+
+  <b>Transaction Table:</b>
+  - ethereum_transactions_raw
+  - Indexed on: hash, block_number, addresses, timestamps
+  - PRIMARY KEY: hash (deduplication)
+
+  <b>Dimension Tables:</b>
+  - dim_contract (DeFi protocol contracts)
+  - dim_function (function signatures)
+  - dim_calldata_slice (calldata parsing rules)
+
+  All tables use ON CONFLICT for upsert logic
+end note
+
+note right of DimensionTableScraper
+  Populates dimension tables for transaction decoding
+
+  <b>Data Sources:</b>
+  - The Graph API: Uniswap pool contracts
+  - 4byte.directory: Function signatures
+
+  <b>Workflow:</b>
+  1. Scrape contract addresses from subgraphs
+  2. Scrape function signatures from 4byte
+  3. Deduplicate and upsert into PostgreSQL
+
+  Runs once on startup (restart: "no")
 end note
 
 note bottom of TransactionNormalizer
@@ -319,28 +410,36 @@ end note
 note as N1
   <b>Complete End-to-End Data Flow</b>
 
-  <b>1. Transaction Capture (TypeScript)</b>
+  <b>1. Dimension Table Population (TypeScript - Run Once)</b>
+  • DimensionTableScraper runs on startup
+  • Fetches pool contracts from The Graph API (Uniswap subgraph)
+  • Fetches function signatures from 4byte.directory
+  • Populates dim_contract and dim_function tables
+  • Exits after completion (restart: "no")
+
+  <b>2. Transaction Capture (TypeScript - Continuous)</b>
   • EthereumWebSocketListener connects to Ethereum WebSocket RPC
   • Subscribes to pending transactions from mempool
   • Fetches full transaction details with concurrency control
   • Auto-reconnection with exponential backoff on disconnect
 
-  <b>2. Normalization & Publishing (TypeScript)</b>
+  <b>3. Normalization & Publishing (TypeScript)</b>
   • TransactionNormalizer extracts key fields and adds metadata
   • TransactionKafkaProducer publishes to Kafka topic
   • GZIP compression, idempotent producer
 
-  <b>3. Stream Processing (PySpark)</b>
+  <b>4. Stream Processing (PySpark - Continuous)</b>
   • SparkKafkaConsumer reads from Kafka using Structured Streaming
   • Parses and validates transaction schema
   • Type casting for numeric fields (NUMERIC(38,0), BIGINT)
   • Batch processing via foreachBatch
 
-  <b>4. Persistence (PostgreSQL)</b>
-  • Writes to PostgreSQL via JDBC and psycopg2
+  <b>5. Persistence (PostgreSQL)</b>
+  • Writes to ethereum_transactions_raw via JDBC and psycopg2
   • Upsert logic: INSERT ... ON CONFLICT (hash) DO NOTHING
   • Indexed for efficient queries by address, block, network
   • Auto-commits Kafka offsets after successful write
+  • Dimension tables available for transaction decoding/enrichment
 end note
 
 @enduml
