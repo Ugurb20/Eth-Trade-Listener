@@ -1,15 +1,39 @@
 # Spark Kafka Consumer for Ethereum Transactions
 
-PySpark-based Kafka consumer that processes Ethereum transaction messages from the `blockchain.txs.raw` topic. This consumer automatically commits offsets and deletes messages after consumption.
+PySpark-based Kafka consumer that processes Ethereum transaction messages from the `blockchain.txs.raw` topic and persists them to PostgreSQL. This consumer automatically commits offsets and features a modular architecture similar to the eth-listener.
 
 ## Features
 
 - **Real-time streaming**: Consumes Kafka messages using Spark Structured Streaming
 - **Auto-commit enabled**: Messages are automatically committed and deleted after consumption
 - **Schema validation**: Validates incoming messages against the NormalizedTransaction schema
-- **Console output**: Logs all consumed transactions for monitoring
+- **PostgreSQL persistence**: Writes transactions to PostgreSQL with upsert logic
+- **Modular architecture**: Clean separation of concerns with types, clients, and utils
 - **Fault tolerance**: Checkpoint-based recovery for reliability
 - **Docker support**: Containerized deployment with the full stack
+
+## Modular Structure
+
+The spark-consumer follows the same modular architecture as eth-listener:
+
+```
+spark-consumer/
+├── types/              # Type definitions and schemas
+│   ├── __init__.py
+│   ├── config_types.py      # Configuration dataclasses
+│   └── transaction_types.py # Transaction schemas and types
+├── clients/            # Client classes for external services
+│   ├── __init__.py
+│   ├── spark_session.py     # Spark session management
+│   ├── kafka_stream.py      # Kafka stream reader
+│   └── postgres_writer.py   # PostgreSQL writer client
+├── utils/              # Pure utility functions
+│   ├── __init__.py
+│   ├── config_loader.py     # Environment config loader
+│   └── mappers.py           # Data mapping functions
+├── kafka_consumer.py   # Main entry point
+└── requirements.txt
+```
 
 ## Architecture
 
@@ -22,17 +46,29 @@ PySpark-based Kafka consumer that processes Ethereum transaction messages from t
                      ▼
 ┌─────────────────────────────────────────────────────────────┐
 │              Spark Kafka Consumer                            │
-│  • Reads from Kafka using Structured Streaming              │
-│  • Parses JSON messages                                     │
-│  • Validates against transaction schema                     │
-│  • Auto-commits offsets (messages deleted)                  │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │ SparkSessionManager                                  │   │
+│  │  • Creates and configures Spark session             │   │
+│  └─────────────────────────────────────────────────────┘   │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │ KafkaStreamReader                                    │   │
+│  │  • Reads from Kafka using Structured Streaming      │   │
+│  │  • Parses JSON messages                             │   │
+│  │  • Validates against transaction schema             │   │
+│  └─────────────────────────────────────────────────────┘   │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │ PostgresWriter                                       │   │
+│  │  • Batch writes with upsert logic                   │   │
+│  │  • ON CONFLICT DO NOTHING for duplicates            │   │
+│  └─────────────────────────────────────────────────────┘   │
 └────────────────────┬────────────────────────────────────────┘
-                     │ Parsed transactions
+                     │ Processed transactions
                      ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                  Console Output                              │
-│  • Displays transaction details                             │
-│  • Logs hash, from, to, value, gas, etc.                    │
+│                  PostgreSQL Database                         │
+│  • ethereum_transactions_raw table                          │
+│  • Indexed on hash, block_number, addresses                 │
+│  • Logs all transaction details                             │
 └─────────────────────────────────────────────────────────────┘
 ```
 

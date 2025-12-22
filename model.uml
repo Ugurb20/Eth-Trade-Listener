@@ -198,24 +198,41 @@ package "Core Components" {
         +getTopic()
     }
 
-    class SparkKafkaConsumer <<python>> {
+    class SparkSessionManager <<python>> {
+        -config: SparkConsumerConfig
         -spark: SparkSession
-        -kafkaBootstrapServers: string
-        -topic: string
-        -consumerGroupId: string
-        -transactionSchema: StructType
-        -postgresUrl: string
-        -postgresProperties: dict
         __
-        +SparkKafkaConsumer()
-        +createSparkSession()
-        +getTransactionSchema()
-        +getPostgresUrl()
-        +getPostgresProperties()
-        +consumeKafkaMessages()
-        +writeToPostgres(batch_df, batch_id)
-        -parseMessages()
-        -upsertPartition(partition)
+        +SparkSessionManager(config)
+        +create_session()
+        +get_session()
+        +stop()
+        -suppress_kafka_logs()
+    }
+
+    class KafkaStreamReader <<python>> {
+        -spark: SparkSession
+        -kafka_config: KafkaConfig
+        -transaction_schema: StructType
+        __
+        +KafkaStreamReader(spark, kafka_config)
+        +read_stream()
+        +parse_transactions(kafka_df)
+    }
+
+    class PostgresWriter <<python>> {
+        -config: PostgresConfig
+        __
+        +PostgresWriter(postgres_config)
+        +write_batch(batch_df, batch_id)
+        -upsert_partition(partition)
+    }
+
+    class ConfigLoader <<python-utility>> {
+        +{static} load_config_from_env()
+    }
+
+    class DataMappers <<python-utility>> {
+        +{static} map_to_postgres_schema(batch_df)
     }
 
     class DimensionTableScraper <<typescript>> {
@@ -314,12 +331,24 @@ TransactionKafkaProducer ..> NormalizedTransaction : consumes
 TransactionKafkaProducer ..> TransactionNormalizer : calls
 
 ' Relationships - Spark Consumer
-SparkKafkaConsumer --> SparkSession : creates
-SparkKafkaConsumer --> KafkaSource : uses
-SparkKafkaConsumer --> PostgreSQL : writes to
-SparkKafkaConsumer --> PostgreSQLDatabase : persists
-SparkKafkaConsumer ..> SparkConsumerConfig : configured by
-SparkKafkaConsumer ..> NormalizedTransaction : consumes
+SparkSessionManager --> SparkSession : creates
+SparkSessionManager ..> SparkConsumerConfig : configured by
+
+KafkaStreamReader --> SparkSession : uses
+KafkaStreamReader --> KafkaSource : uses
+KafkaStreamReader ..> KafkaConfig : configured by
+KafkaStreamReader ..> NormalizedTransaction : consumes
+
+PostgresWriter --> PostgreSQL : writes to
+PostgresWriter --> PostgreSQLDatabase : persists
+PostgresWriter ..> PostgresConfig : configured by
+PostgresWriter ..> DataMappers : calls
+
+ConfigLoader ..> SparkConsumerConfig : creates
+ConfigLoader ..> KafkaConfig : creates
+ConfigLoader ..> PostgresConfig : creates
+
+DataMappers ..> NormalizedTransaction : transforms
 
 ' Relationships - Dimension Scraper
 DimensionTableScraper --> DatabaseManager : uses
@@ -340,7 +369,10 @@ Main --> EthereumWebSocketListener : creates
 Main --> TransactionKafkaProducer : creates
 Main ..> TransactionCallback : sets
 
-SparkConsumerMain --> SparkKafkaConsumer : creates
+SparkConsumerMain --> SparkSessionManager : creates
+SparkConsumerMain --> KafkaStreamReader : creates
+SparkConsumerMain --> PostgresWriter : creates
+SparkConsumerMain ..> ConfigLoader : uses
 
 ScraperMain --> DimensionTableScraper : creates
 
@@ -359,14 +391,28 @@ note right of TransactionKafkaProducer
   - Batch publishing support
 end note
 
-note right of SparkKafkaConsumer
-  Consumes transactions from Kafka using PySpark
+note right of SparkSessionManager
+  Manages Spark session lifecycle
+  - Configures Spark with Kafka and PostgreSQL packages
+  - Sets up checkpoint locations
+  - Suppresses noisy Kafka logs
+  - Graceful shutdown support
+end note
+
+note right of KafkaStreamReader
+  Reads and parses Kafka stream
   - Spark Structured Streaming with Kafka integration
   - Auto-commit enabled (1s interval)
-  - Schema validation and type casting
+  - Schema validation against NormalizedTransaction
+  - Type casting for numeric fields (NUMERIC, BIGINT)
+end note
+
+note right of PostgresWriter
+  Writes batches to PostgreSQL
   - Batch processing with foreachBatch
-  - PostgreSQL persistence with upsert logic
-  - Duplicate handling (ON CONFLICT DO NOTHING)
+  - Upsert logic using psycopg2
+  - ON CONFLICT DO NOTHING for duplicate hashes
+  - Partition-based writes for efficiency
 end note
 
 note right of PostgreSQLDatabase
