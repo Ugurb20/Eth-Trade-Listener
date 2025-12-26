@@ -1,4 +1,6 @@
 // Main entry point for dimension table scraper
+import * as fs from 'fs';
+import * as path from 'path';
 import { DatabaseManager } from './db/connection';
 import { FourByteScraper } from './scrapers/fourbyte-scraper';
 import { UniswapGraphScraper } from './scrapers/uniswap-graph-scraper';
@@ -31,6 +33,8 @@ class DimensionTableScraper {
       await this.scrapeContracts();
 
       await this.scrapeFunctions();
+
+      await this.loadCalldataSlices();
 
       console.log('\n╔════════════════════════════════════════════════════════════╗');
       console.log('║    ✓ Scraping Complete!                                    ║');
@@ -89,6 +93,46 @@ class DimensionTableScraper {
 
     console.log(`\n→ Upserting ${uniqueFunctions.length} unique function signatures into database...`);
     await this.db.upsertFunctions(uniqueFunctions);
+  }
+
+  /**
+   * Step 3: Load calldata slice rules from JSON file
+   */
+  private async loadCalldataSlices(): Promise<void> {
+    console.log('\n━━━ Step 3: Loading Calldata Slice Rules ━━━\n');
+
+    const jsonPath = path.join(__dirname, '../../postgres/queries/calldata_slice_rules.json');
+
+    if (!fs.existsSync(jsonPath)) {
+      console.log('⚠️  No calldata_slice_rules.json found - skipping');
+      return;
+    }
+
+    try {
+      const fileContent = fs.readFileSync(jsonPath, 'utf-8');
+      const rulesData = JSON.parse(fileContent);
+
+      let totalSlices = 0;
+
+      for (const funcRules of rulesData) {
+        const slices: CalldataSlice[] = funcRules.slices.map((slice: any) => ({
+          function_selector: funcRules.function_selector,
+          field_name: slice.field_name,
+          start_byte: slice.start_byte,
+          length_bytes: slice.length_bytes,
+          is_dynamic: slice.is_dynamic,
+          token_direction: slice.token_direction,
+          source: slice.source,
+        }));
+
+        const upserted = await this.db.upsertCalldataSlices(slices);
+        totalSlices += upserted;
+      }
+
+      console.log(`\n→ Loaded ${totalSlices} calldata slice rules from JSON`);
+    } catch (error) {
+      console.error('✗ Failed to load calldata slices:', error);
+    }
   }
 
 

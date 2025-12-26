@@ -39,12 +39,12 @@ def main():
     spark = spark_manager.create_session()
 
     try:
-        # Initialize Kafka Stream Reader
-        kafka_reader = KafkaStreamReader(spark, config.kafka)
+        # Initialize Kafka Stream Reader with calldata parsing support
+        kafka_reader = KafkaStreamReader(spark, config.kafka, config.postgres)
 
-        # Read and parse Kafka stream
+        # Read and parse Kafka stream with calldata parsing enabled
         kafka_df = kafka_reader.read_stream()
-        parsed_df = kafka_reader.parse_transactions(kafka_df)
+        parsed_df = kafka_reader.parse_transactions(kafka_df, enable_calldata_parsing=True)
 
         # Initialize PostgreSQL Writer
         postgres_writer = PostgresWriter(config.postgres)

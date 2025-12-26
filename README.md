@@ -92,12 +92,16 @@ A distributed system that captures pending transactions from Ethereum mempool, s
 - `TransactionNormalizer` - Data normalization
 
 ### 2. spark-consumer (PySpark)
-**Stream processing and database persistence**
+**Stream processing, calldata parsing, and database persistence**
 
 - Consumes from Kafka using Spark Structured Streaming
 - Validates schema and casts types
+- **Dynamic transaction parsing using dimension tables**
+  - Matches transactions to known contracts (dim_contract)
+  - Extracts function selectors and metadata (dim_function)
+  - Parses calldata fields using slice rules (dim_calldata_slice)
 - Batch processing with `foreachBatch`
-- Writes to PostgreSQL with upsert logic
+- Writes to PostgreSQL with upsert logic (raw + decoded tables)
 - Auto-commits offsets
 
 **Technology:**
@@ -126,8 +130,13 @@ A distributed system that captures pending transactions from Ethereum mempool, s
 Ethereum Mempool
     ↓ WebSocket
 [eth-listener] → Normalize → Kafka → [spark-consumer] → PostgreSQL
-                                                            ↓
-                                                   ethereum_transactions_raw
+                                           │                 ↓
+                                           │    ethereum_transactions_raw (all txs)
+                                           │                 ↓
+                                           ├── Parse with dimension tables
+                                           │   (dim_contract + dim_function + dim_calldata_slice)
+                                           │                 ↓
+                                           └→ ethereum_transactions_decoded (parsed txs)
 ```
 
 ### Dimension Tables (Separate Flow)
@@ -181,6 +190,85 @@ function_type       TEXT      -- swap_exact_in
 source              TEXT      -- 4byte, manual
 ```
 
+**dim_calldata_slice** (Calldata parsing rules - JSON configurable)
+```sql
+id                  UUID PRIMARY KEY
+function_selector   CHAR(10)      -- 0x7ff36ab5
+field_name          TEXT          -- amountOutMin, path[0], deadline
+start_byte          INT           -- Byte offset in calldata
+length_bytes        INT           -- Field length (usually 32)
+is_dynamic          BOOLEAN       -- Part of dynamic array?
+token_direction     TEXT          -- in/out/NULL
+source              TEXT          -- manual, generated
+```
+
+**Configuration:** `postgres/queries/calldata_slice_rules.json`
+- Define parsing rules for new functions in JSON
+- Automatically loaded by dim-scraper on startup
+- Supports smart value cleaning (addresses, amounts, numbers)
+- See `postgres/queries/README_CALLDATA_SLICES.md` for documentation
+
+**ethereum_transactions_decoded** (Parsed transactions with enriched metadata)
+```sql
+hash                    TEXT PRIMARY KEY
+contract_address        TEXT          -- Contract that was called
+contract_protocol       TEXT          -- uniswap, sushi, curve
+contract_version        TEXT          -- v2, v3, v2_router_02
+contract_pairname       TEXT          -- WETH/USDC (for pools)
+function_selector       CHAR(10)      -- 0x7ff36ab5
+function_type           TEXT          -- swap_exact_eth_in
+function_protocol       TEXT          -- uniswap_v2
+parsed_fields           JSONB         -- {"to": "0x...", "amountOutMin": "0x...", "path": [...]}
+decoded_at              TIMESTAMPTZ   -- When parsed
+```
+
+### Smart Value Cleaning
+
+The CalldataParser automatically cleans values based on field names:
+
+- **Addresses** (to, from, path[n]): Extracts last 20 bytes → `0x72f70a19b06428e32653e9244ec3e425e0f7877c`
+- **Numbers** (deadline, length, offset): Converts to decimal → `1766788183`
+- **Amounts** (amountOutMin, value): Removes leading zeros → `0xde0b6b3a7640000`
+
+## Adding New DeFi Functions
+
+### JSON Configuration Approach
+
+1. **Edit** `postgres/queries/calldata_slice_rules.json`:
+```json
+{
+  "function_selector": "0x38ed1739",
+  "function_name": "swapExactTokensForTokens",
+  "description": "Swap exact tokens for other tokens",
+  "slices": [
+    {
+      "field_name": "amountIn",
+      "start_byte": 4,
+      "length_bytes": 32,
+      "is_dynamic": false,
+      "token_direction": "in",
+      "source": "manual",
+      "description": "Exact amount of input tokens"
+    }
+  ]
+}
+```
+
+2. **Load** rules into database:
+```bash
+cd dim-scraper
+npm run load-slices
+```
+
+3. **Restart** spark-consumer to use new rules
+
+**Field Naming Determines Parsing:**
+- `to`, `from`, `path[0]` → Cleaned to 20-byte addresses
+- `deadline`, `length`, `offset` → Converted to decimal integers
+- `amountOutMin`, `value`, `price` → Leading zeros removed
+
+**Full Documentation:** `postgres/queries/README_CALLDATA_SLICES.md`
+
 ## Technology Stack
 
 ### Backend
@@ -190,14 +278,14 @@ source              TEXT      -- 4byte, manual
 
 ### Infrastructure
 - **Apache Kafka** - Event streaming
-- **PostgreSQL 16** - Persistent storage
+- **PostgreSQL 16** - Persistent storage with JSONB support
 - **Zookeeper** - Kafka coordination
 
 ### Libraries
 - **ethers.js** - Ethereum WebSocket provider
 - **kafkajs** - Kafka client for Node.js
 - **pyspark** - Spark Structured Streaming
-- **psycopg2** - PostgreSQL driver for Python
+- **psycopg2** - PostgreSQL driver for Python (batch writes)
 
 ## Quick Start
 
@@ -325,6 +413,21 @@ SELECT protocol, version, COUNT(*) as contract_count
 FROM dim_contract
 GROUP BY protocol, version
 ORDER BY contract_count DESC;
+
+-- Decoded transactions count
+SELECT COUNT(*) FROM ethereum_transactions_decoded;
+
+-- Recent decoded transactions
+SELECT hash, contract_protocol, function_type, parsed_fields::text
+FROM ethereum_transactions_decoded
+ORDER BY decoded_at DESC
+LIMIT 10;
+
+-- Decoded transactions by protocol
+SELECT contract_protocol, COUNT(*) as tx_count
+FROM ethereum_transactions_decoded
+GROUP BY contract_protocol
+ORDER BY tx_count DESC;
 ```
 
 ### Logs
@@ -361,7 +464,7 @@ WHERE c.protocol = 'uniswap'
 ORDER BY t.received_at DESC
 LIMIT 100;
 
--- Decode function calls
+-- Decode function calls (old method - manual join)
 SELECT
     t.hash,
     f.function_selector,
@@ -372,6 +475,34 @@ FROM ethereum_transactions_raw t
 JOIN dim_function f ON SUBSTRING(t.data, 1, 10) = f.function_selector
 WHERE f.function_type LIKE '%swap%'
 LIMIT 10;
+
+-- NEW: Query decoded transactions (automatic parsing)
+-- Find all Uniswap swap transactions with parsed calldata
+SELECT
+    hash,
+    contract_protocol,
+    contract_version,
+    function_type,
+    parsed_fields->>'path[0]' as token_in,
+    parsed_fields->>'path[1]' as token_out,
+    parsed_fields->>'amountOutMin' as min_amount_out,
+    decoded_at
+FROM ethereum_transactions_decoded
+WHERE contract_protocol = 'uniswap'
+  AND function_type = 'swap_exact_eth_in'
+ORDER BY decoded_at DESC
+LIMIT 20;
+
+-- Find swaps for a specific token (WETH)
+SELECT hash, contract_protocol, function_type, parsed_fields
+FROM ethereum_transactions_decoded
+WHERE parsed_fields @> '{"path[0]": "0x000000000000000000000000c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"}';
+
+-- Count transactions by function type
+SELECT function_type, COUNT(*) as tx_count
+FROM ethereum_transactions_decoded
+GROUP BY function_type
+ORDER BY tx_count DESC;
 ```
 
 ## Development
@@ -442,13 +573,32 @@ npm run dev
 - dim-scraper: ~50MB RAM (runs briefly)
 - PostgreSQL: ~500MB RAM (base)
 
+## Recent Features
+
+### ✅ Dynamic Transaction Parsing (Implemented)
+The Spark consumer now automatically parses transaction calldata using dimension tables:
+- **Contract Matching**: Matches `to_address` against `dim_contract` to identify protocol and version
+- **Function Decoding**: Extracts function selector and matches against `dim_function`
+- **Calldata Parsing**: Uses `dim_calldata_slice` rules to extract parameters (amounts, token paths, deadlines, etc.)
+- **Decoded Storage**: Stores parsed transactions in `ethereum_transactions_decoded` with JSONB fields
+- **Test Suite**: Includes standalone test script to validate parsing logic
+
+**Example**: For a `swapExactETHForTokens` transaction, automatically extracts:
+- Contract info: Uniswap V2 Router
+- Function type: `swap_exact_eth_in`
+- Parsed fields: `amountOutMin`, `to`, `deadline`, `path[0]` (WETH), `path[1]` (output token)
+
+See `spark-consumer/test_calldata_parser.py` for testing.
+
 ## Future Enhancements
 
-1. **Calldata Decoder** - Use `dim_calldata_slice` to extract swap parameters
-2. **Materialized Views** - Pre-aggregate DeFi swap volumes
-3. **Real-time Alerts** - Large transfers, MEV detection
-4. **Historical Backfill** - Fetch confirmed blocks, not just mempool
-5. **Multi-chain Support** - Polygon, Arbitrum, Optimism
+1. **More Function Support** - Add additional DeFi function signatures (liquidity, staking, lending)
+2. **Token Metadata Enrichment** - Join with token info (symbol, decimals, name)
+3. **Price Calculation** - Calculate swap prices using path and amounts
+4. **Materialized Views** - Pre-aggregate DeFi swap volumes and liquidity changes
+5. **Real-time Alerts** - Large transfers, MEV detection, unusual swap patterns
+6. **Historical Backfill** - Fetch confirmed blocks, not just mempool
+7. **Multi-chain Support** - Polygon, Arbitrum, Optimism, Base
 
 ## Documentation
 

@@ -9,8 +9,9 @@ from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql.functions import col, from_json, expr, to_timestamp
 from pyspark.sql.types import DecimalType, LongType
 
-from spark_types.config_types import KafkaConfig
+from spark_types.config_types import KafkaConfig, PostgresConfig
 from spark_types.transaction_types import get_transaction_schema
+from utils.calldata_parser import CalldataParser
 
 logger = logging.getLogger(__name__)
 
@@ -20,17 +21,27 @@ class KafkaStreamReader:
     Reads and parses Ethereum transactions from Kafka stream
     """
 
-    def __init__(self, spark: SparkSession, kafka_config: KafkaConfig):
+    def __init__(self, spark: SparkSession, kafka_config: KafkaConfig, postgres_config: PostgresConfig = None):
         """
         Initialize Kafka Stream Reader
 
         Args:
             spark: Active Spark session
             kafka_config: Kafka configuration
+            postgres_config: Optional PostgreSQL configuration for calldata parsing
         """
         self.spark = spark
         self.kafka_config = kafka_config
+        self.postgres_config = postgres_config
         self.transaction_schema = get_transaction_schema()
+
+        # Initialize calldata parser if postgres config is provided
+        self.calldata_parser = None
+        if postgres_config:
+            logger.info("Initializing calldata parser with dimension tables...")
+            self.calldata_parser = CalldataParser(spark, postgres_config)
+            self.calldata_parser.load_dimension_tables()
+            logger.info("Calldata parser initialized successfully")
 
     def read_stream(self) -> DataFrame:
         """
@@ -59,12 +70,13 @@ class KafkaStreamReader:
         logger.info("Successfully connected to Kafka stream")
         return kafka_df
 
-    def parse_transactions(self, kafka_df: DataFrame) -> DataFrame:
+    def parse_transactions(self, kafka_df: DataFrame, enable_calldata_parsing: bool = True) -> DataFrame:
         """
         Parses Kafka messages into normalized transaction records
 
         Args:
             kafka_df: Raw Kafka DataFrame
+            enable_calldata_parsing: Whether to enrich transactions with calldata parsing (default: True)
 
         Returns:
             DataFrame: Parsed and transformed transaction DataFrame
@@ -98,5 +110,11 @@ class KafkaStreamReader:
                 expr("NULL").cast("TIMESTAMP").alias("block_timestamp"),
                 expr("NULL").cast("INTEGER").alias("transaction_index")
             )
+
+        # Optionally enrich with calldata parsing using dimension tables
+        if enable_calldata_parsing and self.calldata_parser:
+            logger.info("Enriching transactions with calldata parsing...")
+            parsed_df = self.calldata_parser.enrich_transactions(parsed_df)
+            logger.info("Transactions enriched with contract info, function info, and parsed calldata")
 
         return parsed_df

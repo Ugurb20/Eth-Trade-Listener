@@ -212,11 +212,29 @@ package "Core Components" {
     class KafkaStreamReader <<python>> {
         -spark: SparkSession
         -kafka_config: KafkaConfig
+        -postgres_config: PostgresConfig
         -transaction_schema: StructType
+        -calldata_parser: CalldataParser
         __
-        +KafkaStreamReader(spark, kafka_config)
+        +KafkaStreamReader(spark, kafka_config, postgres_config)
         +read_stream()
-        +parse_transactions(kafka_df)
+        +parse_transactions(kafka_df, enable_calldata_parsing)
+    }
+
+    class CalldataParser <<python>> {
+        -spark: SparkSession
+        -postgres_config: PostgresConfig
+        -dim_contract: DataFrame
+        -dim_function: DataFrame
+        -dim_calldata_slice: DataFrame
+        __
+        +CalldataParser(spark, postgres_config)
+        +load_dimension_tables()
+        +enrich_with_contract_info(df)
+        +enrich_with_function_info(df)
+        +parse_calldata_fields(df)
+        +enrich_transactions(df)
+        -clean_value(field_name, raw_hex)
     }
 
     class PostgresWriter <<python>> {
@@ -225,6 +243,8 @@ package "Core Components" {
         +PostgresWriter(postgres_config)
         +write_batch(batch_df, batch_id)
         -upsert_partition(partition)
+        -upsert_decoded_partition(partition)
+        -convert_parsed_fields_to_json(parsed_fields_list)
     }
 
     class ConfigLoader <<python-utility>> {
@@ -271,15 +291,22 @@ package "Core Components" {
         +close()
         +upsertContracts(contracts)
         +upsertFunctions(functions)
+        +upsertCalldataSlices(slices)
+    }
+
+    class CalldataSliceLoader <<typescript-utility>> {
+        +{static} loadCalldataSlices(db, jsonPath)
     }
 
     class PostgreSQLDatabase <<persistence>> {
         +ethereum_transactions_raw: Table
+        +ethereum_transactions_decoded: Table
         +dim_contract: Table
         +dim_function: Table
         +dim_calldata_slice: Table
         __
         +storeTransaction()
+        +storeDecodedTransaction()
         +queryTransactions()
         +storeDimData()
     }
@@ -336,8 +363,15 @@ SparkSessionManager ..> SparkConsumerConfig : configured by
 
 KafkaStreamReader --> SparkSession : uses
 KafkaStreamReader --> KafkaSource : uses
+KafkaStreamReader --> CalldataParser : uses
 KafkaStreamReader ..> KafkaConfig : configured by
+KafkaStreamReader ..> PostgresConfig : configured by
 KafkaStreamReader ..> NormalizedTransaction : consumes
+
+CalldataParser --> SparkSession : uses
+CalldataParser ..> PostgresConfig : configured by
+CalldataParser ..> PostgreSQLDatabase : reads from
+CalldataParser ..> NormalizedTransaction : enriches
 
 PostgresWriter --> PostgreSQL : writes to
 PostgresWriter --> PostgreSQLDatabase : persists
@@ -354,9 +388,11 @@ DataMappers ..> NormalizedTransaction : transforms
 DimensionTableScraper --> DatabaseManager : uses
 DimensionTableScraper --> FourByteScraper : uses
 DimensionTableScraper --> UniswapGraphScraper : uses
+DimensionTableScraper --> CalldataSliceLoader : uses
 FourByteScraper --> FourByteAPI : queries
 UniswapGraphScraper --> TheGraphAPI : queries
 DatabaseManager --> PostgreSQLDatabase : writes to
+CalldataSliceLoader --> DatabaseManager : uses
 
 ' Utility Relationships
 TransactionNormalizer ..> NormalizedTransaction : creates
@@ -400,19 +436,34 @@ note right of SparkSessionManager
 end note
 
 note right of KafkaStreamReader
-  Reads and parses Kafka stream
+  Reads and parses Kafka stream with calldata decoding
   - Spark Structured Streaming with Kafka integration
   - Auto-commit enabled (1s interval)
   - Schema validation against NormalizedTransaction
   - Type casting for numeric fields (NUMERIC, BIGINT)
+  - Optional calldata parsing using dimension tables
+  - Enriches with contract/function metadata
+end note
+
+note right of CalldataParser
+  Decodes transaction calldata using dimension tables
+  - Loads dim_contract, dim_function, dim_calldata_slice
+  - Enriches with contract protocol and version
+  - Extracts function selectors
+  - Parses calldata fields using slice rules
+  - Cleans values (addresses, amounts, numbers)
+  - Returns parsed_fields_list array
 end note
 
 note right of PostgresWriter
-  Writes batches to PostgreSQL
+  Writes batches to PostgreSQL (raw + decoded)
   - Batch processing with foreachBatch
+  - Writes to ethereum_transactions_raw (all txs)
+  - Writes to ethereum_transactions_decoded (parsed txs)
   - Upsert logic using psycopg2
-  - ON CONFLICT DO NOTHING for duplicate hashes
-  - Partition-based writes for efficiency
+  - ON CONFLICT DO NOTHING/UPDATE
+  - Deduplicates within partitions
+  - Converts parsed_fields_list to JSONB
 end note
 
 note right of PostgreSQLDatabase
@@ -437,13 +488,20 @@ note right of DimensionTableScraper
   <b>Data Sources:</b>
   - The Graph API: Uniswap pool contracts
   - 4byte.directory: Function signatures
+  - JSON file: Calldata slice rules
 
   <b>Workflow:</b>
   1. Scrape contract addresses from subgraphs
   2. Scrape function signatures from 4byte
-  3. Deduplicate and upsert into PostgreSQL
+  3. Load calldata slice rules from JSON
+  4. Deduplicate and upsert into PostgreSQL
 
   Runs once on startup (restart: "no")
+
+  <b>JSON Configuration:</b>
+  - postgres/queries/calldata_slice_rules.json
+  - Defines parsing rules for known functions
+  - Easy to add new DeFi protocols
 end note
 
 note bottom of TransactionNormalizer

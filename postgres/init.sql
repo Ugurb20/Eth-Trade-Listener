@@ -148,3 +148,51 @@ COMMENT ON COLUMN dim_calldata_slice.is_dynamic IS 'Whether this field has dynam
 COMMENT ON COLUMN dim_calldata_slice.token_direction IS 'For swap tokens: token_in (token0) or token_out (token1), NULL for non-swap fields';
 COMMENT ON COLUMN dim_calldata_slice.source IS 'Data source (e.g., generated, manual)';
 COMMENT ON COLUMN dim_calldata_slice.created_at IS 'Timestamp when record was created';
+
+-- ============================================================================
+-- DECODED TRANSACTIONS TABLE
+-- ============================================================================
+-- This table stores decoded/parsed transactions with enriched metadata
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS ethereum_transactions_decoded (
+    -- Identity (references raw transaction)
+    hash                    TEXT PRIMARY KEY,
+
+    -- Contract information
+    contract_address        TEXT,
+    contract_protocol       TEXT,           -- uniswap, sushi, curve, etc.
+    contract_version        TEXT,           -- v2, v3, v2_router_02, etc.
+    contract_pairname       TEXT,           -- e.g., WETH/USDC
+
+    -- Function information
+    function_selector       CHAR(10),       -- 0x7ff36ab5
+    function_type           TEXT,           -- swap_exact_eth_in, add_liquidity, etc.
+    function_protocol       TEXT,           -- uniswap_v2, curve, etc.
+
+    -- Parsed calldata fields (stored as JSONB for flexibility)
+    parsed_fields           JSONB,          -- {amountOutMin: "0x...", path[0]: "0x...", ...}
+
+    -- Metadata
+    decoded_at              TIMESTAMPTZ DEFAULT NOW(),
+
+    -- Foreign key to raw transactions
+    CONSTRAINT fk_raw_transaction FOREIGN KEY (hash) REFERENCES ethereum_transactions_raw(hash) ON DELETE CASCADE
+);
+
+-- Indexes for decoded transactions
+CREATE INDEX IF NOT EXISTS idx_decoded_contract_protocol ON ethereum_transactions_decoded(contract_protocol);
+CREATE INDEX IF NOT EXISTS idx_decoded_function_type ON ethereum_transactions_decoded(function_type);
+CREATE INDEX IF NOT EXISTS idx_decoded_function_selector ON ethereum_transactions_decoded(function_selector);
+CREATE INDEX IF NOT EXISTS idx_decoded_parsed_fields ON ethereum_transactions_decoded USING GIN(parsed_fields);
+CREATE INDEX IF NOT EXISTS idx_decoded_at ON ethereum_transactions_decoded(decoded_at);
+
+COMMENT ON TABLE ethereum_transactions_decoded IS 'Decoded transactions with parsed calldata and enriched metadata from dimension tables';
+COMMENT ON COLUMN ethereum_transactions_decoded.hash IS 'Transaction hash (references ethereum_transactions_raw)';
+COMMENT ON COLUMN ethereum_transactions_decoded.contract_address IS 'The contract address that was called (usually to_address)';
+COMMENT ON COLUMN ethereum_transactions_decoded.contract_protocol IS 'Protocol name from dim_contract';
+COMMENT ON COLUMN ethereum_transactions_decoded.contract_version IS 'Protocol version from dim_contract';
+COMMENT ON COLUMN ethereum_transactions_decoded.function_selector IS 'Function selector extracted from calldata';
+COMMENT ON COLUMN ethereum_transactions_decoded.function_type IS 'Function type from dim_function';
+COMMENT ON COLUMN ethereum_transactions_decoded.parsed_fields IS 'Parsed calldata fields as JSON (e.g., {amountOutMin: "0x...", path: ["0x...", "0x..."]})';
+COMMENT ON COLUMN ethereum_transactions_decoded.decoded_at IS 'Timestamp when transaction was decoded';

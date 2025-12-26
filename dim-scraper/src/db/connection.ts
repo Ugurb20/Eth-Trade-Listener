@@ -207,6 +207,58 @@ export class DatabaseManager {
     return inserted;
   }
 
+  async upsertCalldataSlices(slices: CalldataSlice[]): Promise<number> {
+    if (slices.length === 0) return 0;
+
+    let upserted = 0;
+    for (const slice of slices) {
+      try {
+        // Check if slice exists (based on function_selector and field_name)
+        const checkQuery = 'SELECT id FROM dim_calldata_slice WHERE function_selector = $1 AND field_name = $2';
+        const checkResult = await this.pool.query(checkQuery, [slice.function_selector, slice.field_name]);
+
+        if (checkResult.rows.length > 0) {
+          // Update existing slice
+          const updateQuery = `
+            UPDATE dim_calldata_slice
+            SET start_byte = $3, length_bytes = $4, is_dynamic = $5, token_direction = $6, source = $7
+            WHERE function_selector = $1 AND field_name = $2
+          `;
+          await this.pool.query(updateQuery, [
+            slice.function_selector,
+            slice.field_name,
+            slice.start_byte,
+            slice.length_bytes,
+            slice.is_dynamic,
+            slice.token_direction || null,
+            slice.source,
+          ]);
+        } else {
+          // Insert new slice
+          const insertQuery = `
+            INSERT INTO dim_calldata_slice (function_selector, field_name, start_byte, length_bytes, is_dynamic, token_direction, source)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+          `;
+          await this.pool.query(insertQuery, [
+            slice.function_selector,
+            slice.field_name,
+            slice.start_byte,
+            slice.length_bytes,
+            slice.is_dynamic,
+            slice.token_direction || null,
+            slice.source,
+          ]);
+        }
+        upserted++;
+      } catch (error) {
+        console.error(`Failed to upsert calldata slice for ${slice.function_selector}.${slice.field_name}:`, error);
+      }
+    }
+
+    console.log(`✓ Upserted ${upserted} calldata slices`);
+    return upserted;
+  }
+
   async close(): Promise<void> {
     await this.pool.end();
     console.log('✓ Database connection closed');
