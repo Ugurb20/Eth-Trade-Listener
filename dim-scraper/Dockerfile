@@ -13,6 +13,9 @@ RUN npm install
 # Copy source code
 COPY src ./src
 
+# Copy calldata slice rules JSON
+COPY calldata_slice_rules.json ./
+
 # Build TypeScript
 RUN npm run build
 

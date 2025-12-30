@@ -1,0 +1,278 @@
+[
+  {
+    "function_selector": "0x791ac947",
+    "function_name": "swapExactTokensForETHSupportingFeeOnTransferTokens",
+    "description": "Swap exact tokens for ETH supporting fee-on-transfer tokens",
+    "slices": [
+      {
+        "field_name": "amountIn",
+        "start_byte": 4,
+        "length_bytes": 32,
+        "is_dynamic": false,
+        "token_direction": "in",
+        "source": "manual",
+        "description": "Exact amount of input tokens to swap"
+      },
+      {
+        "field_name": "amountOutMin",
+        "start_byte": 36,
+        "length_bytes": 32,
+        "is_dynamic": false,
+        "token_direction": "out",
+        "source": "manual",
+        "description": "Minimum amount of ETH to receive"
+      },
+      {
+        "field_name": "path_offset",
+        "start_byte": 68,
+        "length_bytes": 32,
+        "is_dynamic": false,
+        "token_direction": null,
+        "source": "manual",
+        "description": "Offset to path array"
+      },
+      {
+        "field_name": "to",
+        "start_byte": 100,
+        "length_bytes": 32,
+        "is_dynamic": false,
+        "token_direction": null,
+        "source": "manual",
+        "description": "Recipient address"
+      },
+      {
+        "field_name": "deadline",
+        "start_byte": 132,
+        "length_bytes": 32,
+        "is_dynamic": false,
+        "token_direction": null,
+        "source": "manual",
+        "description": "Transaction deadline timestamp"
+      },
+      {
+        "field_name": "path_length",
+        "start_byte": 164,
+        "length_bytes": 32,
+        "is_dynamic": true,
+        "token_direction": null,
+        "source": "manual",
+        "description": "Number of tokens in path"
+      },
+      {
+        "field_name": "path[0]",
+        "start_byte": 196,
+        "length_bytes": 32,
+        "is_dynamic": true,
+        "token_direction": "in",
+        "source": "manual",
+        "description": "Input token address"
+      },
+      {
+        "field_name": "path[1]",
+        "start_byte": 228,
+        "length_bytes": 32,
+        "is_dynamic": true,
+        "token_direction": "out",
+        "source": "manual",
+        "description": "WETH address"
+      },
+      {
+        "field_name": "path[2]",
+        "start_byte": 260,
+        "length_bytes": 32,
+        "is_dynamic": true,
+        "token_direction": "out",
+        "source": "manual",
+        "description": "Output token address"
+      },
+      {
+        "field_name": "path[3]",
+        "start_byte": 292,
+        "length_bytes": 32,
+        "is_dynamic": true,
+        "token_direction": "out",
+        "source": "manual",
+        "description": "Output token address"
+      }
+    ]
+  },
+  {
+    "function_selector": "0x18cbafe5",
+    "function_name": "swapExactTokensForETH",
+    "description": "Swap exact amount of tokens for ETH",
+    "slices": [
+      {
+        "field_name": "amountIn",
+        "start_byte": 4,
+        "length_bytes": 32,
+        "is_dynamic": false,
+        "token_direction": "in",
+        "source": "manual",
+        "description": "Exact amount of input tokens to swap"
+      },
+      {
+        "field_name": "amountOutMin",
+        "start_byte": 36,
+        "length_bytes": 32,
+        "is_dynamic": false,
+        "token_direction": "out",
+        "source": "manual",
+        "description": "Minimum amount of ETH to receive"
+      },
+      {
+        "field_name": "path_offset",
+        "start_byte": 68,
+        "length_bytes": 32,
+        "is_dynamic": false,
+        "token_direction": null,
+        "source": "manual",
+        "description": "Offset to path array"
+      },
+      {
+        "field_name": "to",
+        "start_byte": 100,
+        "length_bytes": 32,
+        "is_dynamic": false,
+        "token_direction": null,
+        "source": "manual",
+        "description": "Recipient address"
+      },
+      {
+        "field_name": "deadline",
+        "start_byte": 132,
+        "length_bytes": 32,
+        "is_dynamic": false,
+        "token_direction": null,
+        "source": "manual",
+        "description": "Transaction deadline timestamp"
+      },
+      {
+        "field_name": "path_length",
+        "start_byte": 164,
+        "length_bytes": 32,
+        "is_dynamic": true,
+        "token_direction": null,
+        "source": "manual",
+        "description": "Number of tokens in path"
+      },
+      {
+        "field_name": "path[0]",
+        "start_byte": 196,
+        "length_bytes": 32,
+        "is_dynamic": true,
+        "token_direction": "in",
+        "source": "manual",
+        "description": "Input token address"
+      },
+      {
+        "field_name": "path[1]",
+        "start_byte": 228,
+        "length_bytes": 32,
+        "is_dynamic": true,
+        "token_direction": "out",
+        "source": "manual",
+        "description": "WETH address"
+      }
+    ]
+  },
+
+  {
+  "function_selector": "0x38ed1739",
+  "function_name": "swapExactTokensForTokens",
+  "description": "Swap exact amount of tokens for other tokens",
+  "slices": [
+    {
+      "field_name": "amountIn",
+      "start_byte": 4,
+      "length_bytes": 32,
+      "is_dynamic": false,
+      "token_direction": "in",
+      "source": "manual",
+      "description": "Exact amount of input tokens to swap"
+    },
+    {
+      "field_name": "amountOutMin",
+      "start_byte": 36,
+      "length_bytes": 32,
+      "is_dynamic": false,
+      "token_direction": "out",
+      "source": "manual",
+      "description": "Minimum amount of output tokens to receive"
+    },
+    {
+      "field_name": "path_offset",
+      "start_byte": 68,
+      "length_bytes": 32,
+      "is_dynamic": false,
+      "token_direction": null,
+      "source": "manual",
+      "description": "Offset to path array"
+    },
+    {
+      "field_name": "to",
+      "start_byte": 100,
+      "length_bytes": 32,
+      "is_dynamic": false,
+      "token_direction": null,
+      "source": "manual",
+      "description": "Recipient address"
+    },
+    {
+      "field_name": "deadline",
+      "start_byte": 132,
+      "length_bytes": 32,
+      "is_dynamic": false,
+      "token_direction": null,
+      "source": "manual",
+      "description": "Transaction deadline timestamp"
+    },
+    {
+      "field_name": "path_length",
+      "start_byte": 164,
+      "length_bytes": 32,
+      "is_dynamic": true,
+      "token_direction": null,
+      "source": "manual",
+      "description": "Number of tokens in path"
+    },
+    {
+      "field_name": "path[0]",
+      "start_byte": 196,
+      "length_bytes": 32,
+      "is_dynamic": true,
+      "token_direction": "in",
+      "source": "manual",
+      "description": "Input token address"
+    },
+    {
+      "field_name": "path[1]",
+      "start_byte": 228,
+      "length_bytes": 32,
+      "is_dynamic": true,
+      "token_direction": "out",
+      "source": "manual",
+      "description": "Output token address"
+    },
+     {
+      "field_name": "path[2]",
+      "start_byte": 260,
+      "length_bytes": 32,
+      "is_dynamic": true,
+      "token_direction": "out",
+      "source": "manual",
+      "description": "Output token address"
+    },
+
+      {
+      "field_name": "path[3]",
+      "start_byte": 292,
+      "length_bytes": 32,
+      "is_dynamic": true,
+      "token_direction": "out",
+      "source": "manual",
+      "description": "Output token address"
+      }
+  ]
+}
+
+]

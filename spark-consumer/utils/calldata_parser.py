@@ -245,7 +245,10 @@ class CalldataParser:
             field_lower = field_name.lower()
 
             # Address fields: to, from, recipient, token, path[n]
-            if any(x in field_lower for x in ['to', 'from', 'recipient', 'token', 'address', 'path[']):
+            # Use word boundaries to avoid matching 'to' in 'amountOut'
+            if (field_lower == 'to' or field_lower == 'from' or
+                'recipient' in field_lower or 'token' in field_lower or
+                'address' in field_lower or 'path[' in field_lower):
                 # Extract last 20 bytes (40 hex chars) for addresses
                 if len(raw_hex) >= 40:
                     return f"0x{raw_hex[-40:]}"
@@ -259,11 +262,13 @@ class CalldataParser:
                 except:
                     return f"0x{raw_hex}"
 
-            # Amount fields: remove ALL leading zeros
+            # Amount fields: convert to decimal integer (uint)
             elif any(x in field_lower for x in ['amount', 'value', 'price', 'fee', 'min', 'max']):
-                # Strip all leading zeros from the hex string
-                cleaned = raw_hex.lstrip('0') or '0'
-                return f"0x{cleaned}"
+                # Convert hex to decimal integer
+                try:
+                    return str(int(raw_hex, 16))
+                except:
+                    return f"0x{raw_hex}"
 
             # Default: return as-is
             else:

@@ -111,6 +111,9 @@ class KafkaStreamReader:
                 expr("NULL").cast("INTEGER").alias("transaction_index")
             )
 
+        # Filter out invalid transactions (nonce is required)
+        parsed_df = parsed_df.filter(col("nonce").isNotNull())
+
         # Optionally enrich with calldata parsing using dimension tables
         if enable_calldata_parsing and self.calldata_parser:
             logger.info("Enriching transactions with calldata parsing...")

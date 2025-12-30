@@ -101,7 +101,7 @@ class DimensionTableScraper {
   private async loadCalldataSlices(): Promise<void> {
     console.log('\n━━━ Step 3: Loading Calldata Slice Rules ━━━\n');
 
-    const jsonPath = path.join(__dirname, '../../postgres/queries/calldata_slice_rules.json');
+    const jsonPath = path.join(__dirname, '../calldata_slice_rules.json');
 
     if (!fs.existsSync(jsonPath)) {
       console.log('⚠️  No calldata_slice_rules.json found - skipping');

@@ -1,0 +1,9 @@
+{
+  "to": "0xc78b1907a5b1efaadddac31060ae5afa76c6e0b9",
+  "path[0]": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+  "path[1]": "0x6fa1051c3c8355d5267313a84483f2fc13f9b0fa",
+  "deadline": "1766789206",
+  "path_length": "2",
+  "path_offset": "128",
+  "amountOutMin": "0x000000000000000075a99c14c8b97b116c17512e"
+}
